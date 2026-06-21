@@ -1,4 +1,4 @@
-import type { GameInfo, SuiteRun } from './types'
+import type { AgentStrategyId, GameInfo, SuiteRun } from './types'
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8010/api'
 
@@ -16,14 +16,18 @@ export async function fetchGames(): Promise<GameInfo[]> {
   return payload.games
 }
 
-export async function createRun(gameIds: string[], maxActions: number): Promise<SuiteRun> {
+export async function createRun(gameIds: string[], maxActions: number, agentId?: AgentStrategyId): Promise<SuiteRun> {
+  const agentLabel = agentId === 'heuristic-explorer' ? 'Heuristic Explorer'
+    : agentId === 'action-sweep' ? 'Action Sweep'
+    : agentId === 'visual-click-scan' ? 'Visual Click Scan'
+    : 'Heuristic Explorer'
   const response = await fetch(`${API_BASE}/runs`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       game_ids: gameIds,
       max_actions: maxActions,
-      agent: 'Heuristic Explorer',
+      agent: agentLabel,
     }),
   })
   return readJson<SuiteRun>(response)
