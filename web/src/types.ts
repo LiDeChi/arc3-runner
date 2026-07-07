@@ -124,3 +124,23 @@ export interface SuiteRun {
   games: Record<string, GameRun>
   error?: string
 }
+
+// UI types for the refactored interface
+export type AgentStrategyId = 'heuristic-explorer' | 'action-sweep' | 'visual-click-scan'
+
+export interface AgentStrategy {
+  id: AgentStrategyId
+  label: string
+  description: string
+  supportsComplexActions: boolean
+}
+
+export const AGENT_STRATEGIES: AgentStrategy[] = [
+  { id: 'heuristic-explorer', label: 'Heuristic Explorer', description: '按未尝试优先和信息增益探索动作', supportsComplexActions: true },
+  { id: 'action-sweep', label: 'Action Sweep', description: '轮询未尝试的简单动作', supportsComplexActions: false },
+  { id: 'visual-click-scan', label: 'Visual Click Scan', description: '按连通区域点击 complex action', supportsComplexActions: true },
+]
+
+export type InterfaceMode = 'visual' | 'data'
+
+export type HistoryViewMode = 'gallery' | 'list' | 'timeline'
