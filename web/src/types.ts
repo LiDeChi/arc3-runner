@@ -16,7 +16,7 @@ export interface GameInfo {
   tags: string[]
   baseline_actions: number[]
   default_fps: number
-  source: 'official' | 'demo'
+  source: 'official' | 'synth-local' | 'demo'
 }
 
 export interface ActionCandidate {
@@ -49,7 +49,54 @@ export interface ChangedPixel {
   after: number
 }
 
+export type TransformSpec =
+  | { op: 'identity' }
+  | { op: 'translate'; dx: number; dy: number }
+  | { op: 'rotate'; k: number; pivot?: string }
+  | { op: 'mirror'; axis: string }
+  | { op: 'scale'; factor: number }
+  | { op: 'color_map'; mapping: Record<string, number> }
+  | { op: 'toggle'; cells: number[][]; color: number }
+  | { op: 'compose'; fs: TransformSpec[] }
+  | { op: 'conditional'; pred: Record<string, unknown>; if_true: TransformSpec; if_false: TransformSpec }
+  | { op: 'periodic'; n: number; f: TransformSpec; g: TransformSpec }
+
+export interface TransformHypothesis {
+  hypothesis_id: string
+  action_id: number
+  scope: { object_selector: string; region: unknown | null }
+  transform: TransformSpec
+  readable: string
+  support: number
+  violations: number
+  confidence: number
+  complexity: number
+  source: string
+  alternatives: string[]
+}
+
+export interface ImaginationAudit {
+  predicted_frame: number[][]
+  plan_tree: Record<string, unknown>
+  mode: 'exploit' | 'probe' | 'reset' | string
+}
+
+export interface SurpriseAudit {
+  value: number
+  pixel_error: number
+  pixel_error_rate: number
+  object_error: number
+  belief_flips: Array<{ from: string; to: string }>
+}
+
+export interface CredibilityAudit {
+  claimed: number
+  calibrated: number
+  gate: 'exploit' | 'probe' | string
+}
+
 export interface TraceStep {
+  schema?: 'arc3-runner.audit.v2' | 'arc3-runner.audit.v3' | string
   index: number
   timestamp: string
   action_name: string
@@ -79,6 +126,7 @@ export interface TraceStep {
   agent_state_before: {
     step_index: number
     policy: string
+    agent?: string
     action_stats: Record<string, { trials: number; cumulative_information_reward: number; mean_information_reward: number }>
     pending_click_candidates: Array<{ x: number; y: number }>
     used_clicks: Array<{ x: number; y: number }>
@@ -90,6 +138,10 @@ export interface TraceStep {
   changed_cells: number
   duration_ms: number
   audit_note: string
+  hypotheses?: TransformHypothesis[]
+  imagination?: ImaginationAudit
+  surprise?: SurpriseAudit
+  credibility?: CredibilityAudit
 }
 
 export interface GameRun {
@@ -114,7 +166,7 @@ export interface SuiteRun {
   run_id: string
   status: RunStatus
   agent: string
-  mode: 'official-live' | 'demo-replay'
+  mode: 'official-live' | 'synth-local' | 'demo-replay'
   max_actions: number
   created_at: string
   started_at: string | null
@@ -126,7 +178,7 @@ export interface SuiteRun {
 }
 
 // UI types for the refactored interface
-export type AgentStrategyId = 'heuristic-explorer' | 'action-sweep' | 'visual-click-scan'
+export type AgentStrategyId = 'heuristic-explorer' | 'transform-aware' | 'action-sweep' | 'visual-click-scan'
 
 export interface AgentStrategy {
   id: AgentStrategyId
@@ -137,6 +189,7 @@ export interface AgentStrategy {
 
 export const AGENT_STRATEGIES: AgentStrategy[] = [
   { id: 'heuristic-explorer', label: 'Heuristic Explorer', description: '按未尝试优先和信息增益探索动作', supportsComplexActions: true },
+  { id: 'transform-aware', label: 'Transform-Aware', description: '用变换假设做想象规划，并在低置信度时主动 probe', supportsComplexActions: false },
   { id: 'action-sweep', label: 'Action Sweep', description: '轮询未尝试的简单动作', supportsComplexActions: false },
   { id: 'visual-click-scan', label: 'Visual Click Scan', description: '按连通区域点击 complex action', supportsComplexActions: true },
 ]
@@ -144,3 +197,49 @@ export const AGENT_STRATEGIES: AgentStrategy[] = [
 export type InterfaceMode = 'visual' | 'data'
 
 export type HistoryViewMode = 'gallery' | 'list' | 'timeline'
+
+export interface TrainingStatus {
+  status: 'idle' | 'running' | 'stopping' | 'completed' | 'error'
+  current_generation: number
+  total_generations: number
+  current_game: string | null
+  games_completed: number
+  games_per_generation: number
+  metrics: Record<string, number>
+  error?: string
+}
+
+export interface TrainingGeneration {
+  gen: number
+  created_at: string
+  agent_metrics: Record<string, number>
+  gen_metrics: Record<string, unknown>
+  weights: Record<string, number>
+}
+
+export interface SynthGameSummary {
+  spec_id: string
+  gen: number
+  trap: string
+  params: Record<string, unknown>
+  fool_score: number
+  solved: boolean
+}
+
+export interface TrainingKnowledge {
+  priors: Array<{ action_key: string; family: string; support: number; total: number }>
+  calibration: Array<{ bucket: number; claimed: number; hit_rate: number; n: number }>
+  trap_signals: Array<{ trap: string; signature: string; hits: number }>
+}
+
+export interface SynthSpec {
+  spec_id: string
+  grid: number
+  avatar: { color: number; start: [number, number] }
+  goal: { type: string; target: [number, number]; color: number }
+  rules: Record<string, TransformSpec>
+  traps: Array<{ template: string; params: Record<string, unknown> }>
+  max_steps: number
+  win_levels: number
+  title?: string
+}

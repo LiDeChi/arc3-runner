@@ -1,15 +1,42 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Activity, Bot, Circle, Cloud, FlaskConical, Play, RefreshCw, Sidebar, Wifi, WifiOff } from 'lucide-react'
-import { createRun, fetchGames, fetchRun } from './api'
+import {
+  createRun,
+  createSynthSpec,
+  fetchGames,
+  fetchRun,
+  fetchSynthSpecs,
+  fetchTrainingGenerations,
+  fetchTrainingKnowledge,
+  fetchTrainingStatus,
+  startTraining,
+  stopTraining,
+} from './api'
 import { buildDemoGameRun, buildDemoSuite, demoGames } from './demo'
-import type { GameInfo, SuiteRun, AgentStrategyId, InterfaceMode, HistoryViewMode } from './types'
+import type {
+  AgentStrategyId,
+  GameInfo,
+  HistoryViewMode,
+  InterfaceMode,
+  SuiteRun,
+  SynthSpec,
+  TrainingGeneration,
+  TrainingKnowledge,
+  TrainingStatus,
+} from './types'
 import { AGENT_STRATEGIES } from './types'
 import { EnvironmentStrip } from './components/EnvironmentStrip'
 import { VisualGameInterface } from './components/VisualGameInterface'
 import { FrameHistory } from './components/FrameHistory'
 import { TraceInspector } from './components/TraceInspector'
+import { SynthFactory } from './components/SynthFactory'
+import { TrainingDashboard } from './components/TrainingDashboard'
+import { CalibrationView } from './components/CalibrationView'
+import { KnowledgeView } from './components/KnowledgeView'
 
 const terminalStatuses = new Set(['completed', 'stopped', 'error'])
+type AppMode = 'run' | 'training'
+type TrainingTab = 'overview' | 'factory' | 'calibration' | 'knowledge'
 
 export default function App() {
   const [games, setGames] = useState<GameInfo[]>(demoGames)
@@ -25,6 +52,14 @@ export default function App() {
   const [maxActions, setMaxActions] = useState(40)
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [appMode, setAppMode] = useState<AppMode>('run')
+  const [synthSpecs, setSynthSpecs] = useState<SynthSpec[]>([])
+  const [synthLoading, setSynthLoading] = useState(false)
+  const [trainingTab, setTrainingTab] = useState<TrainingTab>('overview')
+  const [trainingStatus, setTrainingStatus] = useState<TrainingStatus>()
+  const [trainingGenerations, setTrainingGenerations] = useState<TrainingGeneration[]>([])
+  const [trainingKnowledge, setTrainingKnowledge] = useState<TrainingKnowledge>()
+  const [trainingLoading, setTrainingLoading] = useState(false)
 
   // New UI state
   const [interfaceMode, setInterfaceMode] = useState<InterfaceMode>('visual')
@@ -41,8 +76,69 @@ export default function App() {
       .catch(() => setConnection('demo'))
   }, [])
 
+  const refreshSynthSpecs = useCallback(() => {
+    setSynthLoading(true)
+    fetchSynthSpecs()
+      .then(setSynthSpecs)
+      .catch((reason: Error) => setError(reason.message))
+      .finally(() => setSynthLoading(false))
+  }, [])
+
   useEffect(() => {
-    if (run.mode !== 'official-live' || terminalStatuses.has(run.status)) return
+    let cancelled = false
+    fetchSynthSpecs()
+      .then((specs) => {
+        if (!cancelled) setSynthSpecs(specs)
+      })
+      .catch((reason: Error) => {
+        if (!cancelled) setError(reason.message)
+      })
+    return () => { cancelled = true }
+  }, [])
+
+  const refreshTraining = useCallback(() => {
+    setTrainingLoading(true)
+    Promise.all([
+      fetchTrainingStatus(),
+      fetchTrainingGenerations(),
+      fetchTrainingKnowledge(),
+    ])
+      .then(([status, generations, knowledge]) => {
+        setTrainingStatus(status)
+        setTrainingGenerations(generations)
+        setTrainingKnowledge(knowledge)
+      })
+      .catch((reason: Error) => setError(reason.message))
+      .finally(() => setTrainingLoading(false))
+  }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([
+      fetchTrainingStatus(),
+      fetchTrainingGenerations(),
+      fetchTrainingKnowledge(),
+    ])
+      .then(([status, generations, knowledge]) => {
+        if (cancelled) return
+        setTrainingStatus(status)
+        setTrainingGenerations(generations)
+        setTrainingKnowledge(knowledge)
+      })
+      .catch((reason: Error) => {
+        if (!cancelled) setError(reason.message)
+      })
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    if (trainingStatus?.status !== 'running' && trainingStatus?.status !== 'stopping') return
+    const timer = window.setInterval(refreshTraining, 1000)
+    return () => window.clearInterval(timer)
+  }, [refreshTraining, trainingStatus?.status])
+
+  useEffect(() => {
+    if (run.mode === 'demo-replay' || terminalStatuses.has(run.status)) return
     const timer = window.setInterval(() => {
       fetchRun(run.run_id)
         .then((nextRun) => {
@@ -137,6 +233,72 @@ export default function App() {
     }
   }
 
+  const createSynthetic = async (template: 'T1' | 'T6') => {
+    setSynthLoading(true)
+    setError(null)
+    try {
+      const k = template === 'T1' ? 3 : 4
+      const spec = await createSynthSpec(template, { k })
+      setSynthSpecs((current) => [spec, ...current.filter((item) => item.spec_id !== spec.spec_id)])
+      const refreshedGames = await fetchGames()
+      setGames(refreshedGames)
+      setSelectedGameId(spec.spec_id)
+      setChecked(new Set([spec.spec_id]))
+      setAppMode('training')
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '生成合成题失败')
+    } finally {
+      setSynthLoading(false)
+    }
+  }
+
+  const runSynthetic = async (specId: string) => {
+    setStarting(true)
+    setError(null)
+    try {
+      const nextRun = await createRun([specId], maxActions, strategyId)
+      setRun(nextRun)
+      setConnection('live')
+      setSelectedGameId(specId)
+      setSelectedIndex(0)
+      setFollowLive(true)
+      setAppMode('run')
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '运行合成题失败')
+    } finally {
+      setStarting(false)
+    }
+  }
+
+  const handleStartTraining = async () => {
+    setTrainingLoading(true)
+    setError(null)
+    try {
+      const status = await startTraining(3, 4)
+      setTrainingStatus(status)
+      setTrainingTab('overview')
+      setAppMode('training')
+      window.setTimeout(refreshTraining, 400)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '启动训练失败')
+    } finally {
+      setTrainingLoading(false)
+    }
+  }
+
+  const handleStopTraining = async () => {
+    setTrainingLoading(true)
+    setError(null)
+    try {
+      setTrainingStatus(await stopTraining())
+      window.setTimeout(refreshTraining, 400)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : '停止训练失败')
+    } finally {
+      setTrainingLoading(false)
+    }
+  }
+
   const progress = selectedGame.win_levels
     ? Math.round((selectedGame.levels_completed / selectedGame.win_levels) * 100)
     : 0
@@ -147,6 +309,11 @@ export default function App() {
     <div className="app-shell">
       <header className={`topbar ${showInspector ? 'has-inspector' : ''}`}>
         <div className="brand"><span className="brand-mark">A3</span><strong>ARC3 RUNNER</strong></div>
+        <div className="topbar-divider" />
+        <div className="mode-switch" aria-label="mode switch">
+          <button className={appMode === 'run' ? 'active' : ''} onClick={() => setAppMode('run')}>运行</button>
+          <button className={appMode === 'training' ? 'active' : ''} onClick={() => setAppMode('training')}>训练</button>
+        </div>
         <div className="topbar-divider" />
         <div className="run-context">
           <span className="section-label">ACTIVE SESSION</span>
@@ -191,69 +358,108 @@ export default function App() {
         </button>
       </header>
 
-      <main className={`workspace ${showInspector ? 'has-inspector' : ''}`}>
-        <div className="main-content">
-          <div className="game-stage-bar">
-            <div className="stage-left">
-              <div className={`run-indicator ${selectedGame.status === 'running' ? 'is-running' : ''}`}>
-                <Circle size={7} fill="currentColor" />
-              </div>
-              <span className="section-label">GAME</span>
-              <h2>{selectedGameId}</h2>
-              <small>{selectedGame.official_game_id}</small>
+      <main className={`workspace ${showInspector && appMode === 'run' ? 'has-inspector' : ''}`}>
+        {appMode === 'training' ? (
+          <div className="training-workspace">
+            <div className="training-tabs">
+              <button className={trainingTab === 'overview' ? 'active' : ''} onClick={() => setTrainingTab('overview')}>总览</button>
+              <button className={trainingTab === 'factory' ? 'active' : ''} onClick={() => setTrainingTab('factory')}>对抗工厂</button>
+              <button className={trainingTab === 'calibration' ? 'active' : ''} onClick={() => setTrainingTab('calibration')}>可信度</button>
+              <button className={trainingTab === 'knowledge' ? 'active' : ''} onClick={() => setTrainingTab('knowledge')}>知识库</button>
             </div>
-            <div className="stage-center">
-              <span className="stage-pill">
-                <span>状态</span><b>{selectedGame.state.replace(/_/g, ' ')}</b>
-              </span>
-              <span className="stage-pill">
-                <span>关卡</span><b>{selectedGame.levels_completed}<i>/ {selectedGame.win_levels || '—'}</i></b>
-              </span>
-              <span className="stage-pill">
-                <span>动作</span><b>{selectedGame.action_count}</b>
-              </span>
-              <span className="stage-pill">
-                <span>进度</span><b>{progress}%</b>
-              </span>
-            </div>
-            <div className="stage-right">
-              <button className="rerun-btn" onClick={() => handleRerun(selectedGameId)} disabled={starting}>
-                <RefreshCw size={12} /> 重玩
-              </button>
-              <button
-                className={`inspector-toggle ${showInspector ? 'active' : ''}`}
-                onClick={() => setShowInspector(!showInspector)}
-                title="切换决策详情"
-              >
-                <Sidebar size={13} />
-              </button>
-            </div>
+            {trainingTab === 'overview' && (
+              <TrainingDashboard
+                status={trainingStatus}
+                generations={trainingGenerations}
+                loading={trainingLoading}
+                onStart={handleStartTraining}
+                onStop={handleStopTraining}
+                onRefresh={refreshTraining}
+              />
+            )}
+            {trainingTab === 'factory' && (
+              <SynthFactory
+                specs={synthSpecs}
+                loading={synthLoading}
+                selectedSpecId={selectedGameId}
+                onRefresh={refreshSynthSpecs}
+                onCreate={createSynthetic}
+                onRun={runSynthetic}
+              />
+            )}
+            {trainingTab === 'calibration' && (
+              <CalibrationView knowledge={trainingKnowledge} generations={trainingGenerations} />
+            )}
+            {trainingTab === 'knowledge' && (
+              <KnowledgeView knowledge={trainingKnowledge} />
+            )}
           </div>
+        ) : (
+          <>
+            <div className="main-content">
+              <div className="game-stage-bar">
+                <div className="stage-left">
+                  <div className={`run-indicator ${selectedGame.status === 'running' ? 'is-running' : ''}`}>
+                    <Circle size={7} fill="currentColor" />
+                  </div>
+                  <span className="section-label">GAME</span>
+                  <h2>{selectedGameId}</h2>
+                  <small>{selectedGame.official_game_id}</small>
+                </div>
+                <div className="stage-center">
+                  <span className="stage-pill">
+                    <span>状态</span><b>{selectedGame.state.replace(/_/g, ' ')}</b>
+                  </span>
+                  <span className="stage-pill">
+                    <span>关卡</span><b>{selectedGame.levels_completed}<i>/ {selectedGame.win_levels || '—'}</i></b>
+                  </span>
+                  <span className="stage-pill">
+                    <span>动作</span><b>{selectedGame.action_count}</b>
+                  </span>
+                  <span className="stage-pill">
+                    <span>进度</span><b>{progress}%</b>
+                  </span>
+                </div>
+                <div className="stage-right">
+                  <button className="rerun-btn" onClick={() => handleRerun(selectedGameId)} disabled={starting}>
+                    <RefreshCw size={12} /> 重玩
+                  </button>
+                  <button
+                    className={`inspector-toggle ${showInspector ? 'active' : ''}`}
+                    onClick={() => setShowInspector(!showInspector)}
+                    title="切换决策详情"
+                  >
+                    <Sidebar size={13} />
+                  </button>
+                </div>
+              </div>
 
-          <VisualGameInterface
-            step={selectedStep}
-            gameId={selectedGameId}
-            mode={interfaceMode}
-            onModeChange={setInterfaceMode}
-          />
+              <VisualGameInterface
+                step={selectedStep}
+                gameId={selectedGameId}
+                mode={interfaceMode}
+                onModeChange={setInterfaceMode}
+              />
 
-          <FrameHistory
-            steps={steps}
-            selectedIndex={safeIndex}
-            playing={playing}
-            speed={speed}
-            viewMode={historyViewMode}
-            onPlaying={setPlaying}
-            onSelect={selectStep}
-            onSpeed={setSpeed}
-            onViewMode={setHistoryViewMode}
-          />
-        </div>
+              <FrameHistory
+                steps={steps}
+                selectedIndex={safeIndex}
+                playing={playing}
+                speed={speed}
+                viewMode={historyViewMode}
+                onPlaying={setPlaying}
+                onSelect={selectStep}
+                onSpeed={setSpeed}
+                onViewMode={setHistoryViewMode}
+              />
+            </div>
 
-        {showInspector && (
-          <aside className="inspector-panel">
-            <TraceInspector step={selectedStep} />
-          </aside>
+            {showInspector && (
+              <aside className="inspector-panel">
+                <TraceInspector step={selectedStep} />
+              </aside>
+            )}
+          </>
         )}
       </main>
 

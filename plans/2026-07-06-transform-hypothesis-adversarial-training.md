@@ -15,6 +15,19 @@
 - 不改官方 Toolkit 的调用方式；官方环境只做**评测**，训练主要在本地合成环境上进行（避免 API 限速，且合成环境才有可控陷阱）。
 - 不做分布式训练。单进程、SQLite 持久化即可。
 
+## 当前分支执行状态（2026-07-07）
+
+- 已切到 `claude/project-overview-xj2b52` 的干净本地 checkout：`/Users/lidechi/Documents/Github/worktrees/arc3-runner/project-overview-xj2b52`。
+- M0 契约先行：已扩展 `TraceStep` audit.v3 字段和 Training 类型；`demo.ts` 已加入 hypotheses/imagination/surprise/credibility 演示数据。
+- M1 变换 DSL：已新增 `server/transforms.py` 与 `tests/test_transforms.py`，覆盖基元 apply/序列化/可读串/复杂度/组合。
+- M2 影子模式：已新增 `server/hypothesis.py` 与 `tests/test_hypothesis.py`；`server/main.py` 在不改变旧启发式策略的前提下写入假设、想象帧、惊奇、可信度事件；`VisualGameInterface`、`HypothesisPanel`、`ImaginationView` 和 `EventDetail` 已能显示这些字段，`VectorFieldOverlay` 提供 translate 假设的向量示意。
+- M3 变换感知策略：已新增 `server/imagination.py` 与 `server/policy.py`；`POST /api/runs` 可传 `agent: "transform-aware"`；运行时按假设置信度在 exploit/probe 间切换，并把 decision-time plan tree 写入 audit.v3 事件；`tests/test_policy.py` 覆盖策略路由。
+- M4 合成环境与陷阱库（后端）：已新增 `server/synth_env.py` 与 `server/traps.py`；内置 T1/T6 合成题；`GET/POST /api/synth/specs` 与 `GET /api/synth/specs/{spec_id}` 可列出、创建、读取 GameSpec；`synth-*` 游戏可通过现有 run loop 执行；`tests/test_synth_env.py` 覆盖规则突变、伪装偏移和 API。
+- M4 专用 SynthFactory 前端页签：已新增训练模式与 `SynthFactory.tsx`，支持查看合成题画廊、GameSpec JSON、生成 T1/T6、直接创建 synth-local run。
+- M5 对抗训练循环与 SQLite：已新增 `server/store.py`、`server/trainer.py` 和 `/api/training/*`；训练会采样 T1/T6 合成题、执行 transform-aware episode、计算 solve_rate/prediction_accuracy/ECE/fool_score、写入 SQLite；前端已新增 TrainingDashboard、CalibrationView、KnowledgeView；`tests/test_training.py` 覆盖 store、episode、训练 API；训练知识会回灌到后续合成 episode，动作先验只记录非 identity 变换，可信度使用连续 `1 - surprise` 校准口径。
+- M6 官方环境对照评测：trainer 已支持每 N 代触发官方公开环境对照评测 hook；`RunnerRuntime.evaluate_official_agents()` 可在有官方环境访问时对 Heuristic Explorer、原始 Transform-Aware、训练后 Transform-Aware 运行有界对照并报告 solve_rate、prediction_accuracy、ECE、delta 和 trained_delta；官方评测只迁移训练得到的校准策略，不把合成动作先验直接套到官方 action_id 上；TrainingDashboard 会显示官方评测报告；README 已更新；离线测试用 fake evaluator 覆盖持久化与报告链路。
+- 验收证据（2026-07-07）：本地合成训练 `generations=10, games_per_gen=12` 后，solve_rate 从 0.1667 到 0.5，ECE 从 0.0377 到 0.0057，fool_score 从 4.9704 到 3.2988；匿名官方公开环境对照 `max_games=5, max_actions=20` 后，Transform-Aware 与 Heuristic Explorer 持平（delta 全 0），训练后 Transform-Aware 相比原始 Transform-Aware 的 solve_rate delta 0.0、prediction_accuracy delta 0.0、ECE delta -0.1234（0.2435 → 0.1201）。运行中第 5 个官方环境曾出现一次 transient SSL EOF，官方 toolkit 重试后成功完成报告。
+
 ## 现状依据
 
 - `server/main.py:339` `_choose_action`：现有 UCB 式启发策略，将被新策略替换（保留为 `heuristic-explorer` 备选）。

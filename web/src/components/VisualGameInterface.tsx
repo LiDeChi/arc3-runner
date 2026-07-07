@@ -20,6 +20,9 @@ export function VisualGameInterface({ step, gameId, mode, onModeChange }: Visual
       </div>
     )
   }
+  const topHypothesis = step.hypotheses?.[0]
+  const surprise = step.surprise
+  const credibility = step.credibility
 
   return (
     <div className="vgi">
@@ -81,6 +84,19 @@ export function VisualGameInterface({ step, gameId, mode, onModeChange }: Visual
                 <span>假设</span>
               </div>
               <p>{step.hypothesis}</p>
+              {topHypothesis && (
+                <div className="vgi-transform-belief">
+                  <b>{topHypothesis.readable}</b>
+                  <span>{Math.round(topHypothesis.confidence * 100)}%</span>
+                </div>
+              )}
+              {surprise && (
+                <div className="vgi-surprise-line">
+                  <span>surprise</span>
+                  <b>{surprise.value.toFixed(2)}</b>
+                  <i>{surprise.pixel_error} px error</i>
+                </div>
+              )}
             </div>
 
             <div className="vgi-panel vgi-action-space">
@@ -133,12 +149,20 @@ export function VisualGameInterface({ step, gameId, mode, onModeChange }: Visual
               </div>
               <p className="vgi-reason">{step.selected_reason}</p>
               <p className="vgi-result-text">{step.result}</p>
+              {credibility && (
+                <p className="vgi-credibility">
+                  {credibility.gate.toUpperCase()} · claimed {Math.round(credibility.claimed * 100)}% · calibrated {Math.round(credibility.calibrated * 100)}%
+                </p>
+              )}
             </div>
           </div>
         </div>
       ) : (
         <div className="vgi-data">
           <div className="vgi-data-grid">
+            <DataBlock title="Audit Schema" data={{ schema: step.schema ?? 'arc3-runner.audit.v2', credibility: step.credibility, surprise: step.surprise }} />
+            <DataBlock title="Transform Hypotheses" data={step.hypotheses ?? []} />
+            <DataBlock title="Imagination" data={step.imagination ? { mode: step.imagination.mode, plan_tree: step.imagination.plan_tree, predicted_shape: `${step.imagination.predicted_frame.length}×${step.imagination.predicted_frame[0]?.length || 0}` } : null} />
             <DataBlock title="Obseration Input" data={step.observation_input} />
             <DataBlock title="Action Request" data={step.action_request} />
             <DataBlock title="Environment Response" data={step.environment_response} />

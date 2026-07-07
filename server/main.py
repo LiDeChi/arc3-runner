@@ -15,6 +15,18 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from server.hypothesis import HypothesisTracker
+from server.policy import (
+    agent_label,
+    choose_action_sweep,
+    choose_transform_aware_action,
+    choose_visual_click_probe,
+    normalize_agent_id,
+)
+from server.synth_env import SyntheticEnv
+from server.trainer import AdversarialTrainer, TrainingConfig
+from server.traps import default_synth_specs, make_trap_spec, synth_game_info
+
 logger = logging.getLogger("arc3-runner")
 
 
@@ -32,6 +44,19 @@ class RunRequest(BaseModel):
     agent: str = "Heuristic Explorer"
 
 
+class SynthSpecRequest(BaseModel):
+    template: str = "T6"
+    params: dict[str, Any] = Field(default_factory=dict)
+
+
+class TrainingStartRequest(BaseModel):
+    generations: int = Field(default=2, ge=1, le=50)
+    games_per_gen: int = Field(default=4, ge=1, le=100)
+    trap_filter: list[str] | None = None
+    official_eval_interval: int = Field(default=5, ge=0, le=50)
+    official_eval_game_limit: int = Field(default=2, ge=1, le=10)
+
+
 class RunnerRuntime:
     """Owns the official Arcade client and mutable run snapshots."""
 
@@ -41,6 +66,9 @@ class RunnerRuntime:
         self._games: list[dict[str, Any]] = []
         self._runs: dict[str, dict[str, Any]] = {}
         self._discovery_error: str | None = None
+        self._synth_specs: dict[str, dict[str, Any]] = {
+            spec["spec_id"]: spec for spec in default_synth_specs()
+        }
 
     def _get_arcade(self) -> Any:
         if self._arcade is None:
@@ -69,6 +97,7 @@ class RunnerRuntime:
                         "source": "official",
                     }
                 )
+            games.extend(self._synth_game_infos())
             games.sort(key=lambda game: game["game_id"])
             with self._lock:
                 self._games = games
@@ -80,7 +109,29 @@ class RunnerRuntime:
                 self._discovery_error = str(exc)
                 if self._games:
                     return copy.deepcopy(self._games)
-            raise
+            return self._synth_game_infos()
+
+    def list_synth_specs(self) -> list[dict[str, Any]]:
+        with self._lock:
+            return [copy.deepcopy(spec) for spec in self._synth_specs.values()]
+
+    def get_synth_spec(self, spec_id: str) -> dict[str, Any]:
+        with self._lock:
+            spec = self._synth_specs.get(spec_id)
+            if spec is None:
+                raise KeyError(spec_id)
+            return copy.deepcopy(spec)
+
+    def create_synth_spec(self, request: SynthSpecRequest) -> dict[str, Any]:
+        spec = make_trap_spec(request.template, params=request.params)
+        with self._lock:
+            self._synth_specs[spec["spec_id"]] = spec
+            self._games = []
+        return copy.deepcopy(spec)
+
+    def _synth_game_infos(self) -> list[dict[str, Any]]:
+        with self._lock:
+            return [synth_game_info(spec) for spec in self._synth_specs.values()]
 
     def start_run(self, request: RunRequest) -> dict[str, Any]:
         known = {game["game_id"]: game for game in self.discover_games()}
@@ -92,12 +143,18 @@ class RunnerRuntime:
             if game_id not in requested:
                 requested.append(game_id)
 
+        agent_id = normalize_agent_id(request.agent)
+        run_mode = (
+            "synth-local"
+            if all(known[game_id].get("source") == "synth-local" for game_id in requested)
+            else "official-live"
+        )
         run_id = uuid.uuid4().hex[:12]
         run = {
             "run_id": run_id,
             "status": "queued",
-            "agent": request.agent,
-            "mode": "official-live",
+            "agent": agent_id,
+            "mode": run_mode,
             "max_actions": request.max_actions,
             "created_at": utc_now(),
             "started_at": None,
@@ -141,6 +198,187 @@ class RunnerRuntime:
         with self._lock:
             runs = list(self._runs.values())
             return [self._run_summary(run) for run in reversed(runs)]
+
+    def evaluate_official_agents(
+        self,
+        max_games: int = 2,
+        max_actions: int = 20,
+        training_knowledge: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        games = [
+            game
+            for game in self.discover_games()
+            if game.get("source") == "official"
+        ][:max_games]
+        agents = ["heuristic-explorer", "transform-aware"]
+        has_training_knowledge = bool(
+            training_knowledge
+            and (
+                training_knowledge.get("priors")
+                or training_knowledge.get("calibration")
+            )
+        )
+        if has_training_knowledge:
+            agents.append("transform-aware-trained")
+        rows: list[dict[str, Any]] = []
+        for game in games:
+            row: dict[str, Any] = {"game_id": game["game_id"]}
+            for agent in agents:
+                try:
+                    env = self._make_official_env(game["game_id"])
+                    policy_agent = (
+                        "transform-aware"
+                        if agent == "transform-aware-trained"
+                        else agent
+                    )
+                    row[agent] = self._evaluate_env_agent(
+                        env,
+                        policy_agent,
+                        max_actions,
+                        knowledge=_official_training_knowledge(training_knowledge)
+                        if agent == "transform-aware-trained"
+                        else None,
+                    )
+                except Exception as exc:  # pragma: no cover - network/runtime dependent
+                    row[agent] = {"error": str(exc), "solved": False}
+            rows.append(row)
+
+        summary = {
+            agent: _summarize_eval_rows(
+                [
+                    row[agent]
+                    for row in rows
+                    if agent in row and "error" not in row[agent]
+                ]
+            )
+            for agent in agents
+        }
+        report = {
+            "game_count": len(rows),
+            "max_actions": max_actions,
+            "games": rows,
+            "summary": summary,
+            "delta": {
+                "solve_rate": round(
+                    summary["transform-aware"]["solve_rate"]
+                    - summary["heuristic-explorer"]["solve_rate"],
+                    4,
+                ),
+                "prediction_accuracy": round(
+                    summary["transform-aware"]["prediction_accuracy"]
+                    - summary["heuristic-explorer"]["prediction_accuracy"],
+                    4,
+                ),
+                "ece": round(
+                    summary["transform-aware"]["ece"]
+                    - summary["heuristic-explorer"]["ece"],
+                    4,
+                ),
+            },
+        }
+        if "transform-aware-trained" in summary:
+            report["trained_delta"] = {
+                "solve_rate": round(
+                    summary["transform-aware-trained"]["solve_rate"]
+                    - summary["transform-aware"]["solve_rate"],
+                    4,
+                ),
+                "prediction_accuracy": round(
+                    summary["transform-aware-trained"]["prediction_accuracy"]
+                    - summary["transform-aware"]["prediction_accuracy"],
+                    4,
+                ),
+                "ece": round(
+                    summary["transform-aware-trained"]["ece"]
+                    - summary["transform-aware"]["ece"],
+                    4,
+                ),
+            }
+        return report
+
+    def _make_official_env(self, game_id: str, attempts: int = 2) -> Any:
+        last_error: Exception | None = None
+        for _ in range(attempts):
+            try:
+                env = self._get_arcade().make(game_id)
+                if env is not None and getattr(env, "observation_space", None) is not None:
+                    return env
+            except Exception as exc:  # pragma: no cover - official API dependent
+                last_error = exc
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError(f"Official environment could not be created: {game_id}")
+
+    def _evaluate_env_agent(
+        self,
+        env: Any,
+        agent_name: str,
+        max_actions: int,
+        knowledge: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        current = env.observation_space
+        frame = self._compose_frame(current.frame)
+        action_stats: dict[int, dict[str, float]] = {}
+        click_queue: deque[tuple[int, int]] = deque(self._candidate_clicks(frame))
+        used_clicks: set[tuple[int, int]] = set()
+        tracker = HypothesisTracker(knowledge=knowledge)
+        surprises: list[float] = []
+        calibration_points: list[dict[str, Any]] = []
+        steps = 0
+        solved = False
+        state_name = getattr(current.state, "name", str(current.state))
+
+        for index in range(1, max_actions + 1):
+            analysis = self._analyze_frame(frame, None)
+            action, data, _candidates, _reason, decision_trace = self._choose_action(
+                env,
+                action_stats,
+                click_queue,
+                used_clicks,
+                analysis,
+                frame,
+                tracker,
+                index,
+                agent_name,
+            )
+            response = env.step(action, data=data, reasoning={"mode": "official-eval"})
+            if response is None:
+                break
+            next_frame = self._compose_frame(response.frame)
+            audit = tracker.observe(
+                action_id=action.value,
+                before_frame=frame,
+                after_frame=next_frame,
+                step_index=index,
+                decision_trace=decision_trace,
+            )
+            surprise = float(audit["surprise"]["value"])
+            claimed = float(audit["credibility"]["calibrated"])
+            surprises.append(surprise)
+            calibration_points.append({"claimed": claimed, "hit": max(0.0, 1.0 - surprise)})
+            next_analysis = self._analyze_frame(next_frame, frame)
+            level_gain = max(0, int(response.levels_completed) - int(current.levels_completed))
+            stat = action_stats.setdefault(action.value, {"count": 0.0, "reward": 0.0})
+            stat["count"] += 1
+            stat["reward"] += math.log1p(float(next_analysis["changed_cells"])) + 20.0 * level_gain
+            frame = next_frame
+            current = response
+            steps = index
+            state_name = response.state.name
+            if state_name == "WIN":
+                solved = True
+                break
+            if state_name == "GAME_OVER":
+                break
+
+        prediction_accuracy = 1.0 - (sum(surprises) / max(len(surprises), 1))
+        return {
+            "solved": solved,
+            "steps": steps,
+            "state": state_name,
+            "prediction_accuracy": round(prediction_accuracy, 4),
+            "ece": round(_eval_ece(calibration_points), 4),
+        }
 
     def get_run(self, run_id: str) -> dict[str, Any]:
         with self._lock:
@@ -189,7 +427,7 @@ class RunnerRuntime:
         try:
             for game_id in run["game_order"]:
                 self._update_run(run_id, current_game_id=game_id)
-                self._execute_game(run_id, game_id, run["max_actions"])
+                self._execute_game(run_id, game_id, run["max_actions"], run["agent"])
             final = self.get_run(run_id)
             statuses = [game["status"] for game in final["games"].values()]
             status = "completed" if any(value == "solved" for value in statuses) else "stopped"
@@ -198,12 +436,15 @@ class RunnerRuntime:
             logger.exception("Run %s failed", run_id)
             self._update_run(run_id, status="error", finished_at=utc_now(), error=str(exc))
 
-    def _execute_game(self, run_id: str, game_id: str, max_actions: int) -> None:
+    def _execute_game(self, run_id: str, game_id: str, max_actions: int, agent_name: str) -> None:
         self._update_game(run_id, game_id, status="starting", started_at=utc_now())
         try:
-            env = self._get_arcade().make(game_id)
+            if game_id in self._synth_specs:
+                env = SyntheticEnv(self.get_synth_spec(game_id))
+            else:
+                env = self._make_official_env(game_id)
             if env is None or env.observation_space is None:
-                raise RuntimeError("Official environment could not be created")
+                raise RuntimeError("Environment could not be created")
             current = env.observation_space
             initial_frame = self._compose_frame(current.frame)
             initial_analysis = self._analyze_frame(initial_frame, None)
@@ -212,8 +453,9 @@ class RunnerRuntime:
                 self._candidate_clicks(initial_frame)
             )
             used_clicks: set[tuple[int, int]] = set()
+            hypothesis_tracker = HypothesisTracker()
             initial_reasoning = {
-                "schema": "arc3-runner.audit.v2",
+                "schema": "arc3-runner.audit.v3",
                 "observation": initial_analysis["summary"],
                 "hypothesis": initial_analysis["hypothesis"],
                 "candidates": [],
@@ -239,10 +481,11 @@ class RunnerRuntime:
                     duration_ms=0,
                     reasoning=initial_reasoning,
                     agent_state=self._agent_state(
-                        action_stats, click_queue, used_clicks, 0
+                        action_stats, click_queue, used_clicks, 0, agent_name
                     ),
                     action_catalog=self._action_catalog(env),
                     transport="arcade.make",
+                    audit_bundle=hypothesis_tracker.initial_audit(initial_frame),
                 ),
             )
             self._update_game(run_id, game_id, status="running")
@@ -252,18 +495,21 @@ class RunnerRuntime:
             for index in range(1, max_actions + 1):
                 analysis = self._analyze_frame(previous_frame, None)
                 agent_state_before = self._agent_state(
-                    action_stats, click_queue, used_clicks, index
+                    action_stats, click_queue, used_clicks, index, agent_name
                 )
-                action, data, candidates, reason = self._choose_action(
+                action, data, candidates, reason, decision_trace = self._choose_action(
                     env,
                     action_stats,
                     click_queue,
                     used_clicks,
                     analysis,
+                    previous_frame,
+                    hypothesis_tracker,
                     index,
+                    agent_name,
                 )
                 reasoning = {
-                    "schema": "arc3-runner.audit.v2",
+                    "schema": "arc3-runner.audit.v3",
                     "observation": analysis["summary"],
                     "hypothesis": analysis["hypothesis"],
                     "candidates": candidates,
@@ -294,6 +540,13 @@ class RunnerRuntime:
                         if point not in used_clicks and point not in click_queue
                     )
 
+                audit_bundle = hypothesis_tracker.observe(
+                    action_id=action.value,
+                    before_frame=previous_frame,
+                    after_frame=next_frame,
+                    step_index=index,
+                    decision_trace=decision_trace,
+                )
                 self._append_step(
                     run_id,
                     game_id,
@@ -312,6 +565,7 @@ class RunnerRuntime:
                         agent_state=agent_state_before,
                         action_catalog=self._action_catalog(env),
                         transport="EnvironmentWrapper.step",
+                        audit_bundle=audit_bundle,
                     ),
                 )
                 previous_frame = next_frame
@@ -343,40 +597,48 @@ class RunnerRuntime:
         click_queue: deque[tuple[int, int]],
         used_clicks: set[tuple[int, int]],
         analysis: dict[str, Any],
+        frame: list[list[int]],
+        hypothesis_tracker: HypothesisTracker,
         index: int,
-    ) -> tuple[Any, dict[str, int], list[dict[str, Any]], str]:
+        agent_name: str,
+    ) -> tuple[Any, dict[str, int], list[dict[str, Any]], str, dict[str, Any] | None]:
         actions = list(env.action_space)
         if not actions:
             raise RuntimeError("Environment exposed no available actions")
 
+        agent_id = normalize_agent_id(agent_name)
+        if agent_id == "transform-aware":
+            return choose_transform_aware_action(
+                env=env,
+                action_stats=action_stats,
+                click_queue=click_queue,
+                used_clicks=used_clicks,
+                analysis=analysis,
+                frame=frame,
+                step_index=index,
+                tracker=hypothesis_tracker,
+            )
+
+        if agent_id == "action-sweep":
+            action, data, candidates, reason = choose_action_sweep(env, action_stats)
+            return action, data, candidates, reason, None
+
         complex_actions = [action for action in actions if action.is_complex()]
         if complex_actions:
-            action = complex_actions[0]
-            while click_queue and click_queue[0] in used_clicks:
-                click_queue.popleft()
-            queued_points = [point for point in click_queue if point not in used_clicks]
-            if not queued_points:
-                queued_points = [((index * 17) % 64, (index * 29) % 64)]
-            candidates = [
-                {
-                    "action": action.name,
-                    "action_id": action.value,
-                    "data": {"x": point[0], "y": point[1]},
-                    "score": round(10.0 - rank * 0.2, 3),
-                    "evidence": f"显著连通区域候选 #{rank + 1}",
-                }
-                for rank, point in enumerate(queued_points[:20])
-            ]
-            point = queued_points[0]
-            if click_queue and click_queue[0] == point:
-                click_queue.popleft()
-            used_clicks.add(point)
-            data = {"x": point[0], "y": point[1]}
-            reason = (
-                f"选择视觉候选区域中心 ({point[0]}, {point[1]})，"
-                f"当前识别到 {analysis['component_count']} 个连通区域。"
+            prefix = (
+                "Visual Click Scan"
+                if agent_id == "visual-click-scan"
+                else "Heuristic Explorer visual probe"
             )
-            return action, data, candidates, reason
+            action, data, candidates, reason = choose_visual_click_probe(
+                complex_actions=complex_actions,
+                click_queue=click_queue,
+                used_clicks=used_clicks,
+                analysis=analysis,
+                step_index=index,
+                evidence_prefix=prefix,
+            )
+            return action, data, candidates, reason, None
 
         candidates: list[dict[str, Any]] = []
         for action in actions:
@@ -413,7 +675,7 @@ class RunnerRuntime:
         )
         action = ranked[0]
         reason = "优先执行未充分探索或历史信息增益更高的动作。"
-        return action, {}, candidates, reason
+        return action, {}, candidates, reason, None
 
     def _build_step(
         self,
@@ -432,15 +694,18 @@ class RunnerRuntime:
         agent_state: dict[str, Any],
         action_catalog: list[dict[str, Any]],
         transport: str,
+        audit_bundle: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         frame = self._compose_frame(current.frame)
         raw_layers = self._serialize_layers(current.frame)
+        audit = audit_bundle or {"schema": "arc3-runner.audit.v2"}
         result = (
             f"环境返回 {current.state.name}；关卡进度 "
             f"{int(current.levels_completed)}/{int(current.win_levels)}；"
             f"变化 {analysis['changed_cells']} 格。"
         )
-        return {
+        step = {
+            "schema": audit.get("schema", "arc3-runner.audit.v2"),
             "index": index,
             "timestamp": utc_now(),
             "action_name": action_name,
@@ -495,6 +760,8 @@ class RunnerRuntime:
             "duration_ms": duration_ms,
             "audit_note": "结构化审计摘要，不包含模型隐藏思维链。",
         }
+        step.update({key: value for key, value in audit.items() if key != "schema"})
+        return step
 
     @staticmethod
     def _serialize_layers(layers: Any) -> list[list[list[int]]]:
@@ -524,10 +791,19 @@ class RunnerRuntime:
         click_queue: deque[tuple[int, int]],
         used_clicks: set[tuple[int, int]],
         step_index: int,
+        agent_name: str,
     ) -> dict[str, Any]:
+        agent_id = normalize_agent_id(agent_name)
+        policy_map = {
+            "heuristic-explorer": "Heuristic Explorer: untried-first + information-gain",
+            "action-sweep": "Action Sweep: round-robin over simple actions",
+            "visual-click-scan": "Visual Click Scan: visual-region clicks for complex actions",
+            "transform-aware": "Transform-Aware: hypothesis confidence gate + probe/exploit",
+        }
         return {
             "step_index": step_index,
-            "policy": "untried-first + information-gain; visual-component centers for ACTION6",
+            "policy": policy_map.get(agent_id, policy_map["heuristic-explorer"]),
+            "agent": agent_label(agent_id),
             "action_stats": {
                 f"ACTION{action_id}": {
                     "trials": int(stats["count"]),
@@ -711,7 +987,49 @@ class RunnerRuntime:
         return scaled or [(32, 32)]
 
 
+def _summarize_eval_rows(rows: list[dict[str, Any]]) -> dict[str, float]:
+    if not rows:
+        return {"solve_rate": 0.0, "prediction_accuracy": 0.0, "ece": 0.0}
+    return {
+        "solve_rate": round(sum(1 for row in rows if row.get("solved")) / len(rows), 4),
+        "prediction_accuracy": round(
+            sum(float(row.get("prediction_accuracy", 0.0)) for row in rows) / len(rows),
+            4,
+        ),
+        "ece": round(sum(float(row.get("ece", 0.0)) for row in rows) / len(rows), 4),
+    }
+
+
+def _eval_ece(points: list[dict[str, Any]]) -> float:
+    if not points:
+        return 0.0
+    buckets: dict[int, list[dict[str, Any]]] = {}
+    for point in points:
+        bucket = min(9, max(0, int(float(point["claimed"]) * 10)))
+        buckets.setdefault(bucket, []).append(point)
+    total = len(points)
+    ece = 0.0
+    for values in buckets.values():
+        claimed = sum(float(point["claimed"]) for point in values) / len(values)
+        hit_rate = sum(float(point["hit"]) for point in values) / len(values)
+        ece += (len(values) / total) * abs(claimed - hit_rate)
+    return ece
+
+
+def _official_training_knowledge(
+    training_knowledge: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    if not training_knowledge:
+        return None
+    return {
+        # Synthetic action priors are source-specific; only calibration transfers to official eval.
+        "priors": [],
+        "calibration": list(training_knowledge.get("calibration", [])),
+    }
+
+
 runtime = RunnerRuntime()
+trainer = AdversarialTrainer(official_evaluator=runtime.evaluate_official_agents)
 app = FastAPI(title="ARC3 Runner API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
@@ -733,6 +1051,73 @@ def games(refresh: bool = False) -> dict[str, Any]:
         return {"mode": "official-live", "games": runtime.discover_games(force=refresh)}
     except Exception as exc:
         raise HTTPException(status_code=503, detail=f"Official discovery failed: {exc}") from exc
+
+
+@app.get("/api/synth/specs")
+def synth_specs() -> dict[str, Any]:
+    return {"specs": runtime.list_synth_specs()}
+
+
+@app.post("/api/synth/specs", status_code=201)
+def create_synth_spec(request: SynthSpecRequest) -> dict[str, Any]:
+    try:
+        return runtime.create_synth_spec(request)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.get("/api/synth/specs/{spec_id}")
+def synth_spec_detail(spec_id: str) -> dict[str, Any]:
+    try:
+        return runtime.get_synth_spec(spec_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Synthetic spec not found") from exc
+
+
+@app.post("/api/training/start", status_code=202)
+def start_training(request: TrainingStartRequest) -> dict[str, Any]:
+    return trainer.start(
+        TrainingConfig(
+            generations=request.generations,
+            games_per_gen=request.games_per_gen,
+            trap_filter=request.trap_filter,
+            official_eval_interval=request.official_eval_interval,
+            official_eval_game_limit=request.official_eval_game_limit,
+        )
+    )
+
+
+@app.post("/api/training/stop")
+def stop_training() -> dict[str, Any]:
+    return trainer.stop()
+
+
+@app.get("/api/training/status")
+def training_status() -> dict[str, Any]:
+    return trainer.status()
+
+
+@app.get("/api/training/generations")
+def training_generations() -> list[dict[str, Any]]:
+    return trainer.store.list_generations()
+
+
+@app.get("/api/training/generations/{gen}/games")
+def training_generation_games(gen: int) -> list[dict[str, Any]]:
+    return trainer.store.list_generation_games(gen)
+
+
+@app.get("/api/training/episodes/{episode_id}")
+def training_episode(episode_id: str) -> dict[str, Any]:
+    try:
+        return trainer.store.get_episode(episode_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Training episode not found") from exc
+
+
+@app.get("/api/training/knowledge")
+def training_knowledge() -> dict[str, Any]:
+    return trainer.store.knowledge()
 
 
 @app.get("/api/runs")

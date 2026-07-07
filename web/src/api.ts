@@ -1,4 +1,13 @@
-import type { AgentStrategyId, GameInfo, SuiteRun } from './types'
+import type {
+  AgentStrategyId,
+  GameInfo,
+  SuiteRun,
+  SynthGameSummary,
+  SynthSpec,
+  TrainingGeneration,
+  TrainingKnowledge,
+  TrainingStatus,
+} from './types'
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://127.0.0.1:8010/api'
 
@@ -17,17 +26,13 @@ export async function fetchGames(): Promise<GameInfo[]> {
 }
 
 export async function createRun(gameIds: string[], maxActions: number, agentId?: AgentStrategyId): Promise<SuiteRun> {
-  const agentLabel = agentId === 'heuristic-explorer' ? 'Heuristic Explorer'
-    : agentId === 'action-sweep' ? 'Action Sweep'
-    : agentId === 'visual-click-scan' ? 'Visual Click Scan'
-    : 'Heuristic Explorer'
   const response = await fetch(`${API_BASE}/runs`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       game_ids: gameIds,
       max_actions: maxActions,
-      agent: agentLabel,
+      agent: agentId ?? 'heuristic-explorer',
     }),
   })
   return readJson<SuiteRun>(response)
@@ -36,4 +41,53 @@ export async function createRun(gameIds: string[], maxActions: number, agentId?:
 export async function fetchRun(runId: string): Promise<SuiteRun> {
   const response = await fetch(`${API_BASE}/runs/${runId}`)
   return readJson<SuiteRun>(response)
+}
+
+export async function fetchSynthSpecs(): Promise<SynthSpec[]> {
+  const response = await fetch(`${API_BASE}/synth/specs`)
+  const payload = await readJson<{ specs: SynthSpec[] }>(response)
+  return payload.specs
+}
+
+export async function createSynthSpec(template: string, params: Record<string, unknown>): Promise<SynthSpec> {
+  const response = await fetch(`${API_BASE}/synth/specs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ template, params }),
+  })
+  return readJson<SynthSpec>(response)
+}
+
+export async function startTraining(generations: number, gamesPerGen: number): Promise<TrainingStatus> {
+  const response = await fetch(`${API_BASE}/training/start`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ generations, games_per_gen: gamesPerGen }),
+  })
+  return readJson<TrainingStatus>(response)
+}
+
+export async function stopTraining(): Promise<TrainingStatus> {
+  const response = await fetch(`${API_BASE}/training/stop`, { method: 'POST' })
+  return readJson<TrainingStatus>(response)
+}
+
+export async function fetchTrainingStatus(): Promise<TrainingStatus> {
+  const response = await fetch(`${API_BASE}/training/status`)
+  return readJson<TrainingStatus>(response)
+}
+
+export async function fetchTrainingGenerations(): Promise<TrainingGeneration[]> {
+  const response = await fetch(`${API_BASE}/training/generations`)
+  return readJson<TrainingGeneration[]>(response)
+}
+
+export async function fetchTrainingKnowledge(): Promise<TrainingKnowledge> {
+  const response = await fetch(`${API_BASE}/training/knowledge`)
+  return readJson<TrainingKnowledge>(response)
+}
+
+export async function fetchTrainingGenerationGames(gen: number): Promise<SynthGameSummary[]> {
+  const response = await fetch(`${API_BASE}/training/generations/${gen}/games`)
+  return readJson<SynthGameSummary[]>(response)
 }

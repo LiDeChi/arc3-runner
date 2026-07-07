@@ -1,9 +1,20 @@
-import { Binary, Braces, BrainCircuit, Columns2, Database, ListTree, MousePointerClick, ScanSearch } from 'lucide-react'
+import { Binary, Braces, BrainCircuit, Columns2, Database, GitBranch, ListTree, MousePointerClick, ScanSearch } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { TraceStep } from '../types'
 import { PixelGrid } from './PixelGrid'
+import { HypothesisPanel } from './HypothesisPanel'
+import { ImaginationView } from './ImaginationView'
 
-export type DetailTab = 'trajectory' | 'input' | 'perception' | 'decision' | 'operation' | 'diff' | 'raw'
+export type DetailTab =
+  | 'trajectory'
+  | 'input'
+  | 'perception'
+  | 'decision'
+  | 'hypotheses'
+  | 'imagination'
+  | 'operation'
+  | 'diff'
+  | 'raw'
 
 interface EventDetailProps {
   steps: TraceStep[]
@@ -36,6 +47,8 @@ export function EventDetail({ steps, selectedIndex, tab, onTab, onSelect }: Even
         <button className={tab === 'input' ? 'active' : ''} onClick={() => onTab('input')}><Database size={13} />完整输入</button>
         <button className={tab === 'perception' ? 'active' : ''} onClick={() => onTab('perception')}><ScanSearch size={13} />对象解析</button>
         <button className={tab === 'decision' ? 'active' : ''} onClick={() => onTab('decision')}><BrainCircuit size={13} />决策状态</button>
+        <button className={tab === 'hypotheses' ? 'active' : ''} onClick={() => onTab('hypotheses')}><GitBranch size={13} />假设</button>
+        <button className={tab === 'imagination' ? 'active' : ''} onClick={() => onTab('imagination')}><Columns2 size={13} />想象</button>
         <button className={tab === 'operation' ? 'active' : ''} onClick={() => onTab('operation')}><MousePointerClick size={13} />实际操作</button>
         <button className={tab === 'diff' ? 'active' : ''} onClick={() => onTab('diff')}><Columns2 size={13} />帧差异</button>
         <button className={tab === 'raw' ? 'active' : ''} onClick={() => onTab('raw')}><Braces size={13} />完整事件</button>
@@ -134,6 +147,10 @@ export function EventDetail({ steps, selectedIndex, tab, onTab, onSelect }: Even
             </DataSection>
           </div>
         )}
+
+        {tab === 'hypotheses' && selected && <HypothesisPanel step={selected} />}
+
+        {tab === 'imagination' && selected && <ImaginationView step={selected} />}
 
         {tab === 'operation' && selected && (
           <div className="operation-grid">

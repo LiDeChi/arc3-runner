@@ -65,6 +65,9 @@ export function buildDemoGameRun(gameId: string): GameRun {
     const changed = changedPixels.length
     const level = index >= 14 ? 2 : index >= 8 ? 1 : 0
     const stepCandidates = index === 0 ? [] : candidates(index)
+    const selectedConfidence = index === 0 ? 0 : Math.min(0.94, 0.48 + index * 0.035)
+    const predictedFrame = beforeFrame ?? frame
+    const surpriseValue = index === 0 ? 0 : Number(Math.min(1, changed / 180).toFixed(3))
     const components = [
       { id: 0, color: 1, size: 92, center: { x: 15, y: 15 }, bounds: { x_min: 6, y_min: 7, x_max: 26, y_max: 24 } },
       { id: 1, color: 9, size: 9, center: { x: 5 + ((index * 2 + seed) % 20), y: 24 - ((index + seed) % 15) }, bounds: { x_min: 4, y_min: 9, x_max: 26, y_max: 25 } },
@@ -72,13 +75,14 @@ export function buildDemoGameRun(gameId: string): GameRun {
     ]
     const actionId = actionName === 'RESET' ? 0 : Number(actionName.replace('ACTION', ''))
     const reasoning = {
-      schema: 'arc3-runner.audit.v2',
+      schema: 'arc3-runner.audit.v3',
       observation: '读取当前像素帧与动作空间。',
       hypothesis: '优先测试未覆盖动作并保留信息增益。',
       candidates: stepCandidates,
       selected: { action: actionName, data: {}, reason: '选择当前最高评分动作。' },
     }
     return {
+      schema: 'arc3-runner.audit.v3',
       index,
       timestamp: new Date(Date.now() - (actionSequence.length - index) * 860).toISOString(),
       action_name: actionName,
@@ -144,6 +148,39 @@ export function buildDemoGameRun(gameId: string): GameRun {
       changed_cells: changed,
       duration_ms: index === 0 ? 0 : 132 + ((index * 47 + seed) % 220),
       audit_note: '结构化审计摘要，不包含模型隐藏思维链。',
+      hypotheses: index === 0 ? [] : [1, 2, 3, 4].map((id) => ({
+        hypothesis_id: `demo-h-a${id}`,
+        action_id: id,
+        scope: { object_selector: 'foreground', region: null },
+        transform: { op: 'translate' as const, dx: id === 1 ? 0 : id === 2 ? 0 : id === 3 ? -1 : 1, dy: id === 1 ? -1 : id === 2 ? 1 : 0 },
+        readable: `ACTION${id} ≙ ${id === 1 ? 'T(0,-1)' : id === 2 ? 'T(0,1)' : id === 3 ? 'T(-1,0)' : 'T(1,0)'} on foreground`,
+        support: Math.max(1, Math.floor(index / 3)),
+        violations: id === actionId && index % 6 === 0 ? 1 : 0,
+        confidence: Number((id === actionId ? selectedConfidence : Math.max(0.25, selectedConfidence - id * 0.08)).toFixed(3)),
+        complexity: 1,
+        source: `fit@step${Math.max(1, index - id)}`,
+        alternatives: id === actionId ? ['I: 0.18', 'G{12 cells}: 0.12'] : [],
+      })),
+      imagination: {
+        predicted_frame: predictedFrame,
+        plan_tree: {
+          mode: selectedConfidence >= 0.5 ? 'exploit' : 'probe',
+          nodes: [{ action_id: actionId, confidence: selectedConfidence, children: [] }],
+        },
+        mode: selectedConfidence >= 0.5 ? 'exploit' : 'probe',
+      },
+      surprise: {
+        value: surpriseValue,
+        pixel_error: Math.min(changed, 64),
+        pixel_error_rate: Number((Math.min(changed, 64) / (32 * 32)).toFixed(4)),
+        object_error: surpriseValue > 0.3 ? 0.4 : 0,
+        belief_flips: index === 9 ? [{ from: 'T(0,-1)', to: 'T(1,0)' }] : [],
+      },
+      credibility: {
+        claimed: Number(selectedConfidence.toFixed(3)),
+        calibrated: Number(Math.max(0, selectedConfidence - 0.06).toFixed(3)),
+        gate: selectedConfidence >= 0.5 ? 'exploit' : 'probe',
+      },
     }
   })
 
