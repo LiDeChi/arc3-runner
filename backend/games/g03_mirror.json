@@ -1,0 +1,26 @@
+{
+  "id": "g03_mirror",
+  "size": {"w": 10, "h": 10},
+  "tiles": [
+    [1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,2,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1]
+  ],
+  "entities": [{"id": "agent", "kind": "agent", "x": 1, "y": 1, "color": 4}],
+  "actions": {
+    "A1": {"program": {"op": "conjugate", "g": {"op": "reflect", "axis": "h"}, "f": {"op": "translate", "dx": 0, "dy": -1}}, "hint": "arrow_up"},
+    "A2": {"program": {"op": "conjugate", "g": {"op": "reflect", "axis": "h"}, "f": {"op": "translate", "dx": 0, "dy": 1}}, "hint": "arrow_down"},
+    "A3": {"program": {"op": "conjugate", "g": {"op": "reflect", "axis": "h"}, "f": {"op": "translate", "dx": -1, "dy": 0}}, "hint": "arrow_left"},
+    "A4": {"program": {"op": "conjugate", "g": {"op": "reflect", "axis": "h"}, "f": {"op": "translate", "dx": 1, "dy": 0}}, "hint": "arrow_right"}
+  },
+  "win": {"type": "reach_goal"},
+  "max_steps": 50,
+  "meta": {"traps": ["conjugate_mirror"], "difficulty": 5.0, "seed": 3}
+}

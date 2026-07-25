@@ -1,0 +1,26 @@
+{
+  "id": "g05_region",
+  "size": {"w": 10, "h": 10},
+  "tiles": [
+    [1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,2,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1]
+  ],
+  "entities": [{"id": "agent", "kind": "agent", "x": 1, "y": 5, "color": 4}],
+  "actions": {
+    "A1": {"program": {"op": "translate", "dx": 0, "dy": -1}, "hint": "arrow_up"},
+    "A2": {"program": {"op": "translate", "dx": 0, "dy": 1}, "hint": "arrow_down"},
+    "A3": {"program": {"op": "conditional", "pred": {"pred": "in_region", "x0": 0, "y0": 0, "x1": 4, "y1": 9}, "then": {"op": "translate", "dx": -1, "dy": 0}, "else": {"op": "translate", "dx": 1, "dy": 0}}, "hint": "arrow_left"},
+    "A4": {"program": {"op": "conditional", "pred": {"pred": "in_region", "x0": 0, "y0": 0, "x1": 4, "y1": 9}, "then": {"op": "translate", "dx": 1, "dy": 0}, "else": {"op": "translate", "dx": -1, "dy": 0}}, "hint": "arrow_right"}
+  },
+  "win": {"type": "reach_goal"},
+  "max_steps": 60,
+  "meta": {"traps": ["region_split"], "difficulty": 6.0, "seed": 5}
+}
