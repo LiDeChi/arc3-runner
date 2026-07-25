@@ -1,0 +1,4 @@
+interface:
+  display_name: "APIMart GPT Image 2"
+  short_description: "Generate images with APIMart GPT Image 2 and save them locally"
+  default_prompt: "Use $apimart-gpt-image-2 to generate an image with APIMart at 1k resolution and save the file locally."
