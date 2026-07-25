@@ -1107,6 +1107,11 @@ def training_generation_games(gen: int) -> list[dict[str, Any]]:
     return trainer.store.list_generation_games(gen)
 
 
+@app.get("/api/training/generations/{gen}/episodes")
+def training_generation_episodes(gen: int) -> list[dict[str, Any]]:
+    return trainer.store.list_generation_episodes(gen)
+
+
 @app.get("/api/training/episodes/{episode_id}")
 def training_episode(episode_id: str) -> dict[str, Any]:
     try:

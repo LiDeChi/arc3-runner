@@ -3,6 +3,7 @@ import type { TraceStep } from '../types'
 import type { InterfaceMode } from '../types'
 import { PixelGrid } from './PixelGrid'
 import { CompactJson } from './CompactJson'
+import { DecisionCard } from './DecisionCard'
 
 interface VisualGameInterfaceProps {
   step?: TraceStep
@@ -62,6 +63,8 @@ export function VisualGameInterface({ step, gameId, mode, onModeChange }: Visual
           </div>
 
           <div className="vgi-sidebar">
+            <DecisionCard step={step} compact />
+
             <div className="vgi-panel vgi-observation">
               <div className="vgi-panel-head">
                 <Eye size={12} />

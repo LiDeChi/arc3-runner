@@ -4,8 +4,11 @@ import type {
   SuiteRun,
   SynthGameSummary,
   SynthSpec,
+  TrainingEpisodeDetail,
+  TrainingEpisodeSummary,
   TrainingGeneration,
   TrainingKnowledge,
+  TrainingStartParams,
   TrainingStatus,
 } from './types'
 
@@ -58,11 +61,11 @@ export async function createSynthSpec(template: string, params: Record<string, u
   return readJson<SynthSpec>(response)
 }
 
-export async function startTraining(generations: number, gamesPerGen: number): Promise<TrainingStatus> {
+export async function startTraining(params: TrainingStartParams): Promise<TrainingStatus> {
   const response = await fetch(`${API_BASE}/training/start`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ generations, games_per_gen: gamesPerGen }),
+    body: JSON.stringify(params),
   })
   return readJson<TrainingStatus>(response)
 }
@@ -90,4 +93,14 @@ export async function fetchTrainingKnowledge(): Promise<TrainingKnowledge> {
 export async function fetchTrainingGenerationGames(gen: number): Promise<SynthGameSummary[]> {
   const response = await fetch(`${API_BASE}/training/generations/${gen}/games`)
   return readJson<SynthGameSummary[]>(response)
+}
+
+export async function fetchTrainingGenerationEpisodes(gen: number): Promise<TrainingEpisodeSummary[]> {
+  const response = await fetch(`${API_BASE}/training/generations/${gen}/episodes`)
+  return readJson<TrainingEpisodeSummary[]>(response)
+}
+
+export async function fetchTrainingEpisode(episodeId: string): Promise<TrainingEpisodeDetail> {
+  const response = await fetch(`${API_BASE}/training/episodes/${episodeId}`)
+  return readJson<TrainingEpisodeDetail>(response)
 }

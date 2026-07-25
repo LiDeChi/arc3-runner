@@ -159,7 +159,7 @@ class AdversarialTrainer:
 
     def _record_episode(self, gen: int, spec: dict[str, Any], episode: dict[str, Any]) -> None:
         trap = spec["traps"][0]["template"]
-        metrics = episode["metrics"]
+        metrics = {**episode["metrics"], "trap": trap}
         self.store.record_synth_game(
             spec_id=spec["spec_id"],
             gen=gen,
@@ -220,6 +220,12 @@ def run_training_episode(
             step_index=step_index,
             tracker=tracker,
         )
+        agent_state_before = _agent_state_snapshot(
+            action_stats,
+            click_queue,
+            used_clicks,
+            step_index,
+        )
         response = env.step(action, data=data, reasoning={"selected": reason})
         next_frame = _compose_frame(response.frame)
         audit = tracker.observe(
@@ -241,15 +247,90 @@ def run_training_episode(
         stat = action_stats.setdefault(action.value, {"count": 0.0, "reward": 0.0})
         stat["count"] += 1
         stat["reward"] += 1.0 - surprise + 5.0 * int(response.levels_completed)
+        changed_pixels = _changed_pixels(frame, next_frame)
+        selected_hypothesis = next(
+            (
+                hypothesis
+                for hypothesis in audit["hypotheses"]
+                if int(hypothesis["action_id"]) == int(action.value)
+            ),
+            audit["hypotheses"][0] if audit["hypotheses"] else None,
+        )
         steps.append(
             {
+                "schema": audit["schema"],
                 "index": step_index,
-                "action": action.name,
-                "reason": reason,
+                "timestamp": datetime.now(UTC).isoformat(),
+                "action_name": action.name,
+                "action_id": int(action.value),
+                "action_data": data,
+                "frame": next_frame,
+                "before_frame": frame,
+                "raw_frame_layers": response.frame,
                 "state": response.state.name,
-                "surprise": audit["surprise"],
-                "credibility": audit["credibility"],
-                "hypotheses": audit["hypotheses"],
+                "levels_completed": int(response.levels_completed),
+                "win_levels": int(response.win_levels),
+                "available_actions": [int(value) for value in response.available_actions],
+                "available_action_details": _action_catalog(env),
+                "observation_input": {
+                    "game_id": response.game_id,
+                    "guid": response.guid,
+                    "state": response.state.name,
+                    "levels_completed": int(response.levels_completed),
+                    "win_levels": int(response.win_levels),
+                    "full_reset": bool(response.full_reset),
+                    "available_actions": [int(value) for value in response.available_actions],
+                    "frame_layer_count": len(response.frame),
+                    "frame_shapes": [
+                        [len(layer), len(layer[0]) if layer else 0]
+                        for layer in response.frame
+                    ],
+                    "frame_layers_ref": "raw_frame_layers",
+                },
+                "perception": {
+                    "width": len(next_frame[0]) if next_frame else 0,
+                    "height": len(next_frame),
+                    "background_color": 0,
+                    "color_histogram": _histogram(next_frame),
+                    "components": [],
+                },
+                "changed_pixels": changed_pixels,
+                "observation": (
+                    f"读取 {len(next_frame[0]) if next_frame else 0}×{len(next_frame)} "
+                    f"合成训练帧；{len(_histogram(next_frame))} 种颜色。"
+                ),
+                "detected_change": f"相对上一步有 {len(changed_pixels)} 个像素变化。",
+                "hypothesis": (
+                    str(selected_hypothesis["readable"])
+                    if selected_hypothesis
+                    else f"{action.name} 尚未拟合变换"
+                ),
+                "candidates": candidates,
+                "agent_state_before": agent_state_before,
+                "selected_reason": reason,
+                "action_request": {
+                    "transport": "synthetic.training",
+                    "action": {"id": int(action.value), "name": action.name},
+                    "data": data,
+                    "reasoning": {"selected": reason},
+                },
+                "environment_response": {
+                    "game_id": response.game_id,
+                    "guid": response.guid,
+                    "state": response.state.name,
+                    "levels_completed": int(response.levels_completed),
+                    "win_levels": int(response.win_levels),
+                    "available_actions": [int(value) for value in response.available_actions],
+                },
+                "result": (
+                    f"环境返回 {response.state.name}；"
+                    f"关卡 {response.levels_completed}/{response.win_levels}；"
+                    f"变化 {len(changed_pixels)} 格。"
+                ),
+                "changed_cells": len(changed_pixels),
+                "duration_ms": 0,
+                "audit_note": "结构化训练审计摘要，不包含模型隐藏思维链。",
+                **{key: value for key, value in audit.items() if key != "schema"},
             }
         )
         frame = next_frame
@@ -325,6 +406,79 @@ def _fool_by_trap(episodes: list[dict[str, Any]]) -> dict[str, float]:
 
 def _transform_prior_key(transform: dict[str, Any]) -> str:
     return json.dumps(transform, sort_keys=True, separators=(",", ":"))
+
+
+def _action_catalog(env: SyntheticEnv) -> list[dict[str, Any]]:
+    return [
+        {
+            "id": int(action.value),
+            "name": action.name,
+            "is_complex": bool(action.is_complex()),
+            "data_schema": action.action_type.model_json_schema(),
+        }
+        for action in env.action_space
+    ]
+
+
+def _agent_state_snapshot(
+    action_stats: dict[int, dict[str, float]],
+    click_queue: deque[tuple[int, int]],
+    used_clicks: set[tuple[int, int]],
+    step_index: int,
+) -> dict[str, Any]:
+    return {
+        "step_index": step_index,
+        "policy": "Transform-Aware",
+        "agent": "transform-aware",
+        "action_stats": {
+            f"ACTION{action_id}": {
+                "trials": int(values["count"]),
+                "cumulative_information_reward": round(float(values["reward"]), 4),
+                "mean_information_reward": round(
+                    float(values["reward"]) / max(float(values["count"]), 1.0),
+                    4,
+                ),
+            }
+            for action_id, values in sorted(action_stats.items())
+        },
+        "pending_click_candidates": [
+            {"x": int(x), "y": int(y)} for x, y in click_queue
+        ],
+        "used_clicks": [
+            {"x": int(x), "y": int(y)} for x, y in sorted(used_clicks)
+        ],
+    }
+
+
+def _changed_pixels(
+    before: list[list[int]],
+    after: list[list[int]],
+) -> list[dict[str, int]]:
+    before_array = np.asarray(before)
+    after_array = np.asarray(after)
+    coordinates = np.argwhere(before_array != after_array)
+    return [
+        {
+            "x": int(x),
+            "y": int(y),
+            "before": int(before_array[y, x]),
+            "after": int(after_array[y, x]),
+        }
+        for y, x in coordinates
+    ]
+
+
+def _histogram(frame: list[list[int]]) -> list[dict[str, int]]:
+    values, counts = np.unique(np.asarray(frame), return_counts=True)
+    pairs = sorted(
+        zip(values, counts, strict=True),
+        key=lambda item: int(item[1]),
+        reverse=True,
+    )
+    return [
+        {"color": int(color), "count": int(count)}
+        for color, count in pairs
+    ]
 
 
 def _compose_frame(layers: Any) -> list[list[int]]:

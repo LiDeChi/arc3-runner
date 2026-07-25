@@ -1,0 +1,58 @@
+objects:
+  - agent
+  - wall
+  - goal
+  - key
+  - door
+  - button
+  - enemy
+  - collectible
+  - hazard
+  - movable
+  - portal
+space_relations:
+  - near
+  - blocked_by
+  - reachable
+  - connected
+  - aligned
+  - path_to
+actions:
+  - move
+  - wait
+  - interact
+  - push
+  - collect
+  - toggle
+causal_effects:
+  - open
+  - close
+  - unlock
+  - move
+  - transform
+  - spawn
+  - destroy
+  - score_change
+  - death
+  - teleport
+goals:
+  - reach
+  - collect
+  - survive
+  - eliminate
+  - arrange
+  - escape
+constraints:
+  - step_limit
+  - irreversible
+  - enemy_motion
+  - locked_path
+  - resource_limit
+  - temporary_state
+feedback:
+  - visual_change
+  - score_change
+  - object_disappear
+  - new_path
+  - failure_signal
+  - success_signal

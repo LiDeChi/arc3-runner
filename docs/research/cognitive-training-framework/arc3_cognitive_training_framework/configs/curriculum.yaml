@@ -1,0 +1,16 @@
+mix:
+  blind_spot_attack: 0.40
+  bias_trap: 0.25
+  schema_expansion: 0.20
+  replay_mixed_old: 0.10
+  frozen_eval: 0.05
+coverage_targets:
+  spatial_reasoning: 0.70
+  causal_reasoning: 0.70
+  time_mechanism: 0.60
+  feedback_ambiguity: 0.60
+  goal_inference: 0.70
+  reversibility: 0.60
+  object_composition: 0.60
+  counterintuitive_rules: 0.60
+  trap_recognition: 0.60

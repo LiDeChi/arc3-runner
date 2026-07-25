@@ -217,6 +217,12 @@ export interface TrainingGeneration {
   weights: Record<string, number>
 }
 
+export interface TrainingStartParams {
+  generations: number
+  games_per_gen: number
+  trap_filter: string[]
+}
+
 export interface SynthGameSummary {
   spec_id: string
   gen: number
@@ -230,6 +236,38 @@ export interface TrainingKnowledge {
   priors: Array<{ action_key: string; family: string; support: number; total: number }>
   calibration: Array<{ bucket: number; claimed: number; hit_rate: number; n: number }>
   trap_signals: Array<{ trap: string; signature: string; hits: number }>
+  surprise_timeline: Array<{
+    gen: number
+    episode_id: string
+    step: number
+    surprise: number
+  }>
+}
+
+export interface TrainingEpisodeSummary {
+  episode_id: string
+  gen: number
+  game: string
+  source: string
+  trap: string
+  solved: boolean
+  fool_score: number
+  steps: number
+  max_surprise: number
+  prediction_accuracy: number
+}
+
+export interface TrainingEpisodeDetail {
+  episode_id: string
+  gen: number
+  game: string
+  spec_id: string
+  source: string
+  trap: string
+  solved: boolean
+  fool_score: number
+  metrics: Record<string, number | boolean | string>
+  steps: TraceStep[]
 }
 
 export interface SynthSpec {

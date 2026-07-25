@@ -1,6 +1,7 @@
 import { Binary, Braces, BrainCircuit, Columns2, Database, GitBranch, ListTree, MousePointerClick, ScanSearch } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { TraceStep } from '../types'
+import { DecisionCard } from './DecisionCard'
 import { PixelGrid } from './PixelGrid'
 import { HypothesisPanel } from './HypothesisPanel'
 import { ImaginationView } from './ImaginationView'
@@ -19,7 +20,7 @@ export type DetailTab =
 interface EventDetailProps {
   steps: TraceStep[]
   selectedIndex: number
-  tab: DetailTab
+  tab: DetailTab | null
   onTab: (tab: DetailTab) => void
   onSelect: (index: number) => void
 }
@@ -41,7 +42,7 @@ export function EventDetail({ steps, selectedIndex, tab, onTab, onSelect }: Even
   const selected = steps[selectedIndex]
   const stats = selected ? Object.entries(selected.agent_state_before?.action_stats ?? {}) : []
   return (
-    <section className="event-detail">
+    <section className={`event-detail ${tab === null ? 'collapsed' : ''}`}>
       <div className="detail-tabs">
         <button className={tab === 'trajectory' ? 'active' : ''} onClick={() => onTab('trajectory')}><ListTree size={13} />轨迹</button>
         <button className={tab === 'input' ? 'active' : ''} onClick={() => onTab('input')}><Database size={13} />完整输入</button>
@@ -52,9 +53,9 @@ export function EventDetail({ steps, selectedIndex, tab, onTab, onSelect }: Even
         <button className={tab === 'operation' ? 'active' : ''} onClick={() => onTab('operation')}><MousePointerClick size={13} />实际操作</button>
         <button className={tab === 'diff' ? 'active' : ''} onClick={() => onTab('diff')}><Columns2 size={13} />帧差异</button>
         <button className={tab === 'raw' ? 'active' : ''} onClick={() => onTab('raw')}><Braces size={13} />完整事件</button>
-        <span>{steps.length} EVENTS</span>
+        <span>{tab === null ? '点击页签展开详情' : `${steps.length} EVENTS`}</span>
       </div>
-      <div className="detail-content">
+      {tab !== null && <div className="detail-content">
         {tab === 'trajectory' && (
           <div className="event-table">
             <div className="event-row event-head"><span>#</span><span>动作</span><span>结果</span><span>Δ</span><span>延迟</span></div>
@@ -123,6 +124,7 @@ export function EventDetail({ steps, selectedIndex, tab, onTab, onSelect }: Even
 
         {tab === 'decision' && selected && (
           <div className="data-grid decision-grid">
+            <DecisionCard step={selected} compact />
             <DataSection title="Agent 内部状态" meta={`BEFORE STEP ${selected.index}`}>
               <div className="policy-line"><Binary size={13} /><span>{selected.agent_state_before.policy}</span></div>
               <div className="compact-table stats-table">
@@ -175,7 +177,7 @@ export function EventDetail({ steps, selectedIndex, tab, onTab, onSelect }: Even
         )}
 
         {tab === 'raw' && selected && <pre className="raw-event">{JSON.stringify(selected, null, 2)}</pre>}
-      </div>
+      </div>}
     </section>
   )
 }

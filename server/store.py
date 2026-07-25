@@ -207,6 +207,36 @@ class TrainingStore:
             )
         return games
 
+    def list_generation_episodes(self, gen: int) -> list[dict[str, Any]]:
+        with self._connect() as db:
+            rows = db.execute(
+                """
+                SELECT episode_id, game, source, metrics
+                FROM episodes
+                WHERE gen = ?
+                ORDER BY episode_id
+                """,
+                (gen,),
+            ).fetchall()
+        episodes = []
+        for row in rows:
+            metrics = json.loads(row["metrics"])
+            episodes.append(
+                {
+                    "episode_id": row["episode_id"],
+                    "gen": gen,
+                    "game": row["game"],
+                    "source": row["source"],
+                    "trap": metrics.get("trap", "synth"),
+                    "solved": bool(metrics.get("solved", False)),
+                    "fool_score": float(metrics.get("fool_score", 0.0)),
+                    "steps": int(metrics.get("steps", 0)),
+                    "max_surprise": float(metrics.get("max_surprise", 0.0)),
+                    "prediction_accuracy": float(metrics.get("prediction_accuracy", 0.0)),
+                }
+            )
+        return episodes
+
     def get_episode(self, episode_id: str) -> dict[str, Any]:
         with self._connect() as db:
             row = db.execute(
@@ -215,12 +245,17 @@ class TrainingStore:
             ).fetchone()
         if row is None:
             raise KeyError(episode_id)
+        metrics = json.loads(row["metrics"])
         return {
             "episode_id": row["episode_id"],
             "gen": int(row["gen"]),
             "game": row["game"],
+            "spec_id": row["game"],
             "source": row["source"],
-            "metrics": json.loads(row["metrics"]),
+            "trap": metrics.get("trap", "synth"),
+            "solved": bool(metrics.get("solved", False)),
+            "fool_score": float(metrics.get("fool_score", 0.0)),
+            "metrics": metrics,
             "steps": json.loads(row["steps_blob"]),
         }
 
@@ -231,8 +266,23 @@ class TrainingStore:
             trap_signals = db.execute(
                 "SELECT * FROM trap_signals ORDER BY trap, hits DESC"
             ).fetchall()
+            episode_rows = db.execute(
+                "SELECT episode_id, gen, steps_blob FROM episodes ORDER BY gen, episode_id"
+            ).fetchall()
+        surprise_timeline = []
+        for row in episode_rows:
+            for step in json.loads(row["steps_blob"]):
+                surprise_timeline.append(
+                    {
+                        "gen": int(row["gen"]),
+                        "episode_id": row["episode_id"],
+                        "step": int(step.get("index", 0)),
+                        "surprise": float(step.get("surprise", {}).get("value", 0.0)),
+                    }
+                )
         return {
             "priors": [dict(row) for row in priors],
             "calibration": [dict(row) for row in calibration],
             "trap_signals": [dict(row) for row in trap_signals],
+            "surprise_timeline": surprise_timeline,
         }

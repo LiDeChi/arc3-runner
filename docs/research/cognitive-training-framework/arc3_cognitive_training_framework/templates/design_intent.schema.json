@@ -1,0 +1,11 @@
+{
+  "game_id": "string",
+  "generator_type": "schema_expansion | blind_spot_attack | bias_trap",
+  "target": "string",
+  "attacked_prior": "string|null",
+  "core_rule": "string",
+  "fair_clues": ["string"],
+  "required_cognition": ["string"],
+  "expected_player_error": "string",
+  "expected_learning": "string"
+}

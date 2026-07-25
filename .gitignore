@@ -13,3 +13,9 @@ artifacts/
 
 # training persistence
 data/
+
+# Codex local runtime state; keep only the shared environment action.
+.codex/*
+!.codex/environments/
+.codex/environments/*
+!.codex/environments/environment.toml

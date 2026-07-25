@@ -1,0 +1,1370 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ARC-AGI-3 · Agent Demo</title>
+<style>
+/* ── Design tokens ────────────────────────────────── */
+:root {
+  --bg:       #080a0f;
+  --s1:       #0d1017;
+  --s2:       #131720;
+  --s3:       #1a2030;
+  --s4:       #1f2535;
+  --border:   rgba(255,255,255,0.06);
+  --borderB:  rgba(255,255,255,0.12);
+  --text:     #dde2ef;
+  --textM:    #5a6580;
+  --textD:    #8896b0;
+  --acc:      #5b5ff5;
+  --accD:     rgba(91,95,245,0.12);
+  --cyan:     #06b6d4;
+  --cyanD:    rgba(6,182,212,0.12);
+  --green:    #22c55e;
+  --greenD:   rgba(34,197,94,0.12);
+  --red:      #ef4444;
+  --redD:     rgba(239,68,68,0.12);
+  --amber:    #f59e0b;
+  --orange:   #f97316;
+  --purple:   #a78bfa;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family: 'SF Mono','Cascadia Code','Fira Code','JetBrains Mono',monospace;
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Topbar ─────────────────────────────────────── */
+.topbar {
+  position: fixed; top:0; left:0; right:0;
+  height: 48px;
+  background: rgba(8,10,15,0.95);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center;
+  padding: 0 16px; gap: 12px;
+  z-index: 200;
+}
+.logo {
+  font-size: 12px; font-weight: 700;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  background: linear-gradient(135deg, var(--cyan), var(--acc));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.topbar-sep { width:1px; height:18px; background:var(--border); }
+.topbar-tag {
+  font-size: 10px; padding: 2px 8px;
+  background: var(--s3); border-radius: 4px;
+  color: var(--textD);
+}
+
+.run-pill {
+  display: flex; align-items: center; gap: 6px;
+  margin-left: auto;
+}
+.status-indicator {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 10px; border-radius: 20px;
+  border: 1px solid var(--border);
+  background: var(--s2);
+}
+.status-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--textM); flex-shrink: 0;
+}
+.status-dot.idle    { background: var(--textM); }
+.status-dot.ready   { background: var(--amber); box-shadow: 0 0 6px var(--amber);}
+.status-dot.playing { background: var(--green); box-shadow: 0 0 6px var(--green); animation: blink 1s ease infinite; }
+.status-dot.paused  { background: var(--amber); }
+.status-dot.completed { background: var(--acc); box-shadow: 0 0 8px var(--acc); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+.status-text { font-size: 11px; color: var(--textD); }
+
+.step-counter-pill {
+  font-size: 11px; color: var(--textD);
+  padding: 4px 10px;
+  background: var(--s2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+}
+.step-counter-pill span { color: var(--cyan); font-weight: 700; }
+
+/* ── Layout ─────────────────────────────────────── */
+.layout {
+  display: grid;
+  grid-template-columns: 264px 1fr 300px;
+  height: 100vh;
+  padding-top: 48px;
+}
+
+/* ── Panel shared ───────────────────────────────── */
+.panel {
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.pane-header {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px;
+  flex-shrink: 0;
+}
+.pane-title {
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--textM);
+}
+.pane-badge {
+  font-size: 10px; padding: 1px 7px;
+  background: var(--accD); color: var(--acc);
+  border-radius: 10px; margin-left: auto;
+}
+
+/* ── Games panel ────────────────────────────────── */
+.panel-games {
+  background: var(--s1);
+  border-right: 1px solid var(--border);
+}
+.games-scroll {
+  flex: 1; overflow-y: auto; padding: 6px;
+}
+.games-scroll::-webkit-scrollbar { width: 3px; }
+.games-scroll::-webkit-scrollbar-thumb { background: var(--s4); border-radius: 2px; }
+
+.game-card {
+  padding: 9px 10px; border-radius: 7px;
+  cursor: pointer; margin-bottom: 2px;
+  border: 1px solid transparent;
+  transition: all 0.12s;
+}
+.game-card:hover { background: var(--s2); border-color: var(--border); }
+.game-card.active {
+  background: var(--accD);
+  border-color: rgba(91,95,245,0.25);
+}
+.gc-id {
+  font-size: 10px; color: var(--cyan);
+  font-weight: 700; letter-spacing: 0.05em;
+}
+.gc-title {
+  font-size: 12px; color: var(--text);
+  font-weight: 500; margin: 2px 0 4px;
+}
+.gc-meta { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.gc-tag {
+  font-size: 9px; padding: 1px 5px;
+  border-radius: 3px; text-transform: uppercase;
+  letter-spacing: 0.06em;
+  background: var(--cyanD); color: var(--cyan);
+}
+.gc-stat {
+  font-size: 9px; color: var(--textM);
+}
+
+/* Error / empty states */
+.err-box {
+  margin: 8px; padding: 10px 12px;
+  background: var(--redD); border: 1px solid rgba(239,68,68,0.2);
+  border-radius: 7px; font-size: 11px; color: var(--red);
+}
+.skeleton { animation: sk 1.4s ease-in-out infinite; }
+.skeleton-row { height: 60px; background: var(--s2); border-radius: 7px; margin-bottom: 3px; }
+@keyframes sk { 0%,100%{opacity:.35} 50%{opacity:.65} }
+
+/* ── Center panel ────────────────────────────────── */
+.panel-center {
+  background: var(--bg);
+  border-right: 1px solid var(--border);
+}
+
+.game-topbar {
+  padding: 10px 16px;
+  background: var(--s1);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 12px;
+  flex-shrink: 0;
+}
+.gtb-info {}
+.gtb-name { font-size: 14px; font-weight: 600; color: var(--text); }
+.gtb-sub  { font-size: 10px; color: var(--textM); margin-top: 2px; }
+
+.controls { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 11px;
+  border-radius: 6px; border: 1px solid var(--border);
+  background: var(--s2); color: var(--text);
+  font-family: inherit; font-size: 11px;
+  cursor: pointer; transition: all 0.12s; white-space: nowrap;
+}
+.btn:hover:not(:disabled) { background: var(--s3); border-color: var(--borderB); }
+.btn:disabled { opacity: 0.35; cursor: default; }
+.btn-ico { padding: 5px 7px; }
+
+.btn-play {
+  background: var(--acc); border-color: var(--acc); color: #fff;
+  font-weight: 600;
+}
+.btn-play:hover:not(:disabled) { background: #4a4ecc; border-color: #4a4ecc; }
+.btn-play.paused { background: var(--amber); border-color: var(--amber); }
+.btn-play.paused:hover:not(:disabled) { background: #d68b00; }
+
+.sel {
+  background: var(--s2); border: 1px solid var(--border);
+  color: var(--text); padding: 5px 8px; border-radius: 6px;
+  font-family: inherit; font-size: 11px; cursor: pointer; outline: none;
+}
+.sel:hover { border-color: var(--borderB); }
+.sel-label { font-size: 10px; color: var(--textM); }
+
+/* Canvas zone */
+.canvas-zone {
+  flex: 1; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(ellipse at 50% 40%, #0e1525 0%, var(--bg) 65%);
+  position: relative;
+}
+.canvas-glow {
+  position: absolute; inset: 0; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 50%, rgba(91,95,245,0.04) 0%, transparent 70%);
+}
+
+.canvas-frame {
+  box-shadow:
+    0 0 0 1px var(--border),
+    0 4px 6px rgba(0,0,0,0.3),
+    0 20px 80px rgba(0,0,0,0.5);
+  border-radius: 3px; overflow: hidden;
+}
+#gameCanvas {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.canvas-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 12px; color: var(--textM); font-size: 13px;
+  border: 1px dashed var(--border); border-radius: 8px;
+  width: 420px; height: 420px;
+}
+.canvas-empty svg { opacity: 0.2; }
+
+/* Bottom bar */
+.bottom-bar {
+  background: var(--s1); border-top: 1px solid var(--border);
+  padding: 8px 16px;
+  display: flex; align-items: center; gap: 14px;
+  flex-shrink: 0;
+}
+.bb-stat { font-size: 11px; color: var(--textM); }
+.bb-stat strong { color: var(--text); font-weight: 600; }
+.bb-sep { width:1px; height:12px; background:var(--border); }
+.progress-track {
+  flex: 1; height: 3px; background: var(--s4);
+  border-radius: 2px; overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--acc), var(--cyan));
+  border-radius: 2px; transition: width 0.4s ease;
+}
+.state-chip {
+  font-size: 9px; padding: 2px 7px; border-radius: 3px;
+  font-weight: 700; letter-spacing: 0.06em;
+}
+.state-NOT_FINISHED { background: rgba(249,115,22,0.15); color: var(--orange); }
+.state-WIN   { background: var(--greenD); color: var(--green); }
+.state-GAME_OVER { background: var(--redD); color: var(--red); }
+
+/* ── Right panel ─────────────────────────────────── */
+.panel-right { background: var(--s1); }
+
+.tabs {
+  display: flex; border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.tab {
+  flex:1; padding: 10px 4px; font-size: 10px;
+  font-family: inherit; text-align: center; cursor: pointer;
+  color: var(--textM); border: none; background: none;
+  border-bottom: 2px solid transparent;
+  text-transform: uppercase; letter-spacing: 0.08em;
+  transition: all 0.15s;
+}
+.tab:hover { color: var(--text); background: var(--s2); }
+.tab.on { color: var(--acc); border-bottom-color: var(--acc); }
+
+.tab-pane { flex:1; overflow-y: auto; display:none; flex-direction:column; }
+.tab-pane::-webkit-scrollbar { width: 3px; }
+.tab-pane::-webkit-scrollbar-thumb { background: var(--s4); border-radius: 2px; }
+.tab-pane.on { display: flex; }
+
+/* Timeline */
+.tl-wrap { padding: 6px; flex:1; }
+.tl-step {
+  display: flex; gap: 8px; align-items: flex-start;
+  padding: 7px 6px; border-radius: 7px; cursor: pointer;
+  border: 1px solid transparent; margin-bottom: 2px;
+  transition: all 0.1s;
+}
+.tl-step:hover { background: var(--s2); }
+.tl-step.cur {
+  background: var(--accD);
+  border-color: rgba(91,95,245,0.2);
+}
+.tl-step.win-step { background: var(--greenD); }
+.tl-step.fail-step { background: var(--redD); }
+
+.tl-num {
+  width: 24px; text-align: right; font-size: 10px;
+  color: var(--textM); padding-top: 1px; flex-shrink: 0;
+}
+.tl-thumb {
+  width: 30px; height: 30px; flex-shrink: 0;
+  border-radius: 3px; overflow: hidden; border: 1px solid var(--border);
+  background: var(--bg);
+}
+.tl-thumb canvas {
+  width: 100%; height: 100%; display: block;
+  image-rendering: pixelated;
+}
+.tl-info { flex: 1; min-width: 0; }
+.tl-action {
+  font-size: 11px; font-weight: 700;
+  color: var(--cyan); letter-spacing: 0.04em;
+}
+.tl-state-lvl {
+  font-size: 9px; color: var(--textM); margin-top: 1px;
+}
+.tl-reason {
+  font-size: 10px; color: var(--textD); margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.tl-empty {
+  flex:1; display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  gap: 8px; color: var(--textM); font-size:12px; opacity:0.6;
+}
+
+/* Details */
+.details-scroll { padding: 12px; flex:1; }
+
+.sec { margin-bottom: 14px; }
+.sec-title {
+  font-size: 9px; font-weight: 700;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--textM); margin-bottom: 7px;
+  padding-bottom: 4px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 6px;
+}
+.sec-title::before {
+  content: ''; display: block;
+  width: 3px; height: 10px; background: var(--acc);
+  border-radius: 2px;
+}
+.kv { display:flex; justify-content:space-between; align-items:center; padding: 3px 0; }
+.kv-k { font-size: 11px; color: var(--textM); }
+.kv-v {
+  font-size: 11px; color: var(--text); font-weight: 500;
+  font-family: 'SF Mono', monospace; max-width: 160px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  text-align: right;
+}
+.kv-v.green { color: var(--green); }
+.kv-v.cyan  { color: var(--cyan);  }
+.kv-v.amber { color: var(--amber); }
+.kv-v.red   { color: var(--red);   }
+
+.reason-block {
+  background: var(--s2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 9px; font-size: 10px;
+  line-height: 1.7; color: var(--textD);
+  word-break: break-word; min-height: 56px;
+}
+.reason-ph { color: var(--textM); font-style: italic; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.chip {
+  font-size: 10px; padding: 2px 7px;
+  border-radius: 4px; border: 1px solid var(--border);
+  background: var(--s3); color: var(--textD);
+}
+
+/* Color heatmap */
+.clr-heatmap { display: grid; grid-template-columns: repeat(8,1fr); gap: 3px; margin-top: 6px; }
+.clr-cell {
+  aspect-ratio: 1; border-radius: 3px;
+  position: relative; cursor: default;
+  transition: transform 0.1s;
+}
+.clr-cell:hover { transform: scale(1.2); z-index: 1; }
+.clr-cell.active { box-shadow: 0 0 6px rgba(255,255,255,0.3); }
+
+/* Stats */
+.stats-scroll { padding: 12px; flex:1; }
+.stat-card {
+  background: var(--s2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 11px; margin-bottom: 7px;
+}
+.sc-label { font-size: 9px; color: var(--textM); text-transform: uppercase; letter-spacing: 0.1em; }
+.sc-val  { font-size: 26px; font-weight: 800; color: var(--text); margin: 2px 0; }
+.sc-sub  { font-size: 10px; color: var(--textM); }
+
+.dist-row {
+  display: flex; align-items: center; gap: 7px; margin-bottom: 5px;
+}
+.dist-name { font-size: 10px; font-family: 'SF Mono', monospace; color: var(--cyan); width: 76px; flex-shrink: 0; }
+.dist-track { flex:1; height: 7px; background: var(--s3); border-radius: 4px; overflow: hidden; }
+.dist-fill { height: 100%; background: var(--acc); border-radius: 4px; transition: width 0.5s; }
+.dist-cnt { font-size: 10px; color: var(--textM); width: 22px; text-align: right; flex-shrink: 0; }
+
+/* Win banner */
+.win-box {
+  margin: 8px 8px 0;
+  background: linear-gradient(135deg, var(--greenD), var(--cyanD));
+  border: 1px solid rgba(34,197,94,0.3);
+  border-radius: 8px; padding: 11px 14px; text-align:center;
+}
+.win-box h3 { font-size:13px; color: var(--green); }
+.win-box p  { font-size:11px; color: var(--textD); margin-top:3px; }
+
+.over-box {
+  margin: 8px 8px 0;
+  background: var(--redD);
+  border: 1px solid rgba(239,68,68,0.3);
+  border-radius: 8px; padding: 11px 14px; text-align:center;
+}
+.over-box h3 { font-size:13px; color: var(--red); }
+.over-box p  { font-size:11px; color: var(--textD); margin-top:3px; }
+
+/* Auto-scroll btn */
+.auto-scroll-btn {
+  position: sticky; bottom: 8px; left: 50%;
+  transform: translateX(-50%);
+  background: var(--acc); color: #fff;
+  border: none; border-radius: 12px;
+  padding: 3px 11px; font-size: 10px;
+  cursor: pointer; font-family: inherit;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s;
+  display: block; width: fit-content; margin: 4px auto;
+}
+.auto-scroll-btn.vis { opacity:1; pointer-events: all; }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 20px; right: 20px;
+  padding: 9px 14px; border-radius: 7px;
+  font-size: 12px; z-index: 999;
+  transform: translateY(60px); opacity: 0;
+  transition: all 0.28s cubic-bezier(0.16,1,0.3,1);
+  pointer-events: none;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast.ok  { background: var(--greenD); border: 1px solid rgba(34,197,94,0.3); color: var(--green); }
+.toast.err { background: var(--redD);   border: 1px solid rgba(239,68,68,0.3);  color: var(--red); }
+.toast.inf { background: var(--accD);   border: 1px solid rgba(91,95,245,0.3);  color: var(--acc); }
+
+/* ARC palette legend */
+.arc-palette { display:grid; grid-template-columns: repeat(8,1fr); gap:3px; margin-top:6px; }
+.arc-cell {
+  aspect-ratio:1; border-radius:3px; cursor:default;
+  position:relative;
+}
+.arc-cell:hover::after {
+  content: attr(data-t);
+  position: absolute; bottom: 110%; left: 50%;
+  transform: translateX(-50%);
+  background: var(--s3); color: var(--text);
+  font-size: 9px; padding: 2px 6px; border-radius: 3px;
+  white-space: nowrap; pointer-events: none; z-index:10;
+  border: 1px solid var(--border);
+}
+</style>
+</head>
+<body>
+
+<!-- ── Top bar ─────────────────────────────────────────── -->
+<div class="topbar">
+  <span class="logo">ARC-AGI-3</span>
+  <div class="topbar-sep"></div>
+  <span class="topbar-tag">Agent Demo System</span>
+  <span class="topbar-tag" id="topbar-games-count" style="display:none"></span>
+
+  <div class="run-pill">
+    <div class="status-indicator">
+      <div class="status-dot idle" id="statusDot"></div>
+      <span class="status-text" id="statusText">Idle</span>
+    </div>
+    <div class="step-counter-pill">
+      Step <span id="topStep">0</span> &nbsp;·&nbsp; Lvl <span id="topLvl">0</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── Layout ─────────────────────────────────────────── -->
+<div class="layout">
+
+  <!-- Left: Games -->
+  <div class="panel panel-games">
+    <div class="pane-header">
+      <span class="pane-title">Training Set</span>
+      <span class="pane-badge" id="gamesCount">—</span>
+    </div>
+    <div id="gamesErr" class="err-box" style="display:none">
+      Backend unreachable at <strong>localhost:3100</strong>
+    </div>
+    <div class="games-scroll" id="gamesList">
+      <div class="skeleton">
+        <div class="skeleton-row"></div>
+        <div class="skeleton-row"></div>
+        <div class="skeleton-row"></div>
+        <div class="skeleton-row"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Center: Canvas -->
+  <div class="panel panel-center">
+    <div class="game-topbar" id="gameTopbar">
+      <div class="gtb-info">
+        <div class="gtb-name" id="gtbName">Select a game</div>
+        <div class="gtb-sub"  id="gtbSub">← Choose from the list on the left</div>
+      </div>
+      <div class="controls">
+        <span class="sel-label">Agent</span>
+        <select class="sel" id="agentSel">
+          <option value="random">Random</option>
+          <option value="heuristic" selected>Heuristic</option>
+        </select>
+        <span class="sel-label">Speed</span>
+        <select class="sel" id="speedSel">
+          <option value="0.5">0.5×</option>
+          <option value="1" selected>1×</option>
+          <option value="2">2×</option>
+          <option value="5">5×</option>
+          <option value="10">10×</option>
+        </select>
+        <button class="btn btn-ico" id="btnReset" disabled title="Reset">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+            <path d="M3 3v5h5"/>
+          </svg>
+        </button>
+        <button class="btn" id="btnStep" disabled>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+            <line x1="19" y1="3" x2="19" y2="21"/>
+          </svg>
+          Step
+        </button>
+        <button class="btn btn-play" id="btnPlay" disabled>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" id="playIconSvg">
+            <polygon points="5 3 19 12 5 21 5 3"/>
+          </svg>
+          <span id="playLbl">Play</span>
+        </button>
+      </div>
+    </div>
+
+    <div class="canvas-zone" id="canvasZone">
+      <div class="canvas-glow"></div>
+      <div class="canvas-empty" id="canvasEmpty">
+        <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+          <rect x="2" y="6" width="20" height="12" rx="2"/>
+          <path d="M12 12h.01M8 10v4M10 12H6M18 10v4M16 12h4"/>
+        </svg>
+        <span>Select a game to begin</span>
+      </div>
+      <div class="canvas-frame" id="canvasFrame" style="display:none">
+        <canvas id="gameCanvas" width="480" height="480"></canvas>
+      </div>
+    </div>
+
+    <div class="bottom-bar">
+      <span class="bb-stat">Step <strong id="bbStep">0</strong></span>
+      <div class="bb-sep"></div>
+      <span class="bb-stat">Lvl <strong id="bbLvl">0</strong>/<strong id="bbTot">?</strong></span>
+      <div class="bb-sep"></div>
+      <span class="bb-stat">⏱ <strong id="bbTime">0.0s</strong></span>
+      <div class="progress-track" style="margin-left:6px">
+        <div class="progress-fill" id="progFill" style="width:1%"></div>
+      </div>
+      <span class="state-chip state-NOT_FINISHED" id="stateChip" style="display:none">NOT_FINISHED</span>
+    </div>
+  </div>
+
+  <!-- Right: Details -->
+  <div class="panel panel-right">
+    <div class="tabs">
+      <button class="tab on"  onclick="switchTab('timeline')">Timeline</button>
+      <button class="tab"     onclick="switchTab('details')">Details</button>
+      <button class="tab"     onclick="switchTab('stats')">Stats</button>
+    </div>
+
+    <!-- TIMELINE -->
+    <div class="tab-pane on" id="tp-timeline">
+      <div id="winBox" style="display:none"></div>
+      <div class="tl-wrap" id="tlWrap">
+        <div class="tl-empty">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.4">
+            <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
+          </svg>
+          <span>No steps yet</span>
+        </div>
+      </div>
+      <button class="auto-scroll-btn" id="scrollBtn" onclick="scrollTLBottom()">↓ Latest</button>
+    </div>
+
+    <!-- DETAILS -->
+    <div class="tab-pane" id="tp-details">
+      <div class="details-scroll">
+
+        <div class="sec">
+          <div class="sec-title">Current Step</div>
+          <div class="kv"><span class="kv-k">Step #</span><span class="kv-v" id="d-step">—</span></div>
+          <div class="kv"><span class="kv-k">Action</span><span class="kv-v cyan" id="d-action">—</span></div>
+          <div class="kv"><span class="kv-k">Game State</span><span class="kv-v" id="d-state">—</span></div>
+          <div class="kv"><span class="kv-k">Levels Done</span><span class="kv-v green" id="d-lvl">—</span></div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-title">Agent Reasoning</div>
+          <div class="reason-block" id="d-reason">
+            <span class="reason-ph">Run the agent to see its decision logic.</span>
+          </div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-title">Available Actions</div>
+          <div class="chips" id="d-avail">
+            <span style="font-size:11px;color:var(--textM)">—</span>
+          </div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-title">Frame Analysis</div>
+          <div class="kv"><span class="kv-k">Active Colors</span><span class="kv-v cyan" id="d-actclr">—</span></div>
+          <div class="kv"><span class="kv-k">Mean Value</span><span class="kv-v" id="d-mean">—</span></div>
+          <div class="clr-heatmap" id="d-heatmap"></div>
+        </div>
+
+        <div class="sec">
+          <div class="sec-title">Run Info</div>
+          <div class="kv"><span class="kv-k">Game ID</span><span class="kv-v cyan" id="d-gid">—</span></div>
+          <div class="kv"><span class="kv-k">Agent</span><span class="kv-v" id="d-agt">—</span></div>
+          <div class="kv"><span class="kv-k">Run ID</span>
+            <span class="kv-v" id="d-rid" style="font-size:9px;max-width:140px">—</span></div>
+          <div class="kv"><span class="kv-k">Seed</span><span class="kv-v" id="d-seed">0</span></div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- STATS -->
+    <div class="tab-pane" id="tp-stats">
+      <div class="stats-scroll">
+        <div class="stat-card">
+          <div class="sc-label">Total Steps</div>
+          <div class="sc-val" id="s-steps">0</div>
+          <div class="sc-sub">actions executed</div>
+        </div>
+        <div class="stat-card">
+          <div class="sc-label">Levels Cleared</div>
+          <div class="sc-val" id="s-lvl">0</div>
+          <div class="sc-sub" id="s-lvl-sub">of ? total</div>
+        </div>
+        <div class="stat-card">
+          <div class="sc-label">Elapsed Time</div>
+          <div class="sc-val" id="s-time">0.0s</div>
+          <div class="sc-sub" id="s-state-sub">idle</div>
+        </div>
+
+        <div style="margin:12px 0 8px">
+          <div class="sec-title" style="font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:var(--textM);margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px">
+            <span style="display:block;width:3px;height:10px;background:var(--acc);border-radius:2px"></span>
+            Action Distribution
+          </div>
+          <div id="s-dist">
+            <div style="font-size:11px;color:var(--textM);opacity:0.6">No data yet</div>
+          </div>
+        </div>
+
+        <div style="margin-top:14px">
+          <div style="font-size:9px;letter-spacing:0.14em;text-transform:uppercase;color:var(--textM);margin-bottom:7px">ARC Color Palette</div>
+          <div class="arc-palette">
+            <div class="arc-cell" style="background:#fff;border:1px solid #333" data-t="0:White"></div>
+            <div class="arc-cell" style="background:#ccc" data-t="1:Lt.Gray"></div>
+            <div class="arc-cell" style="background:#999" data-t="2:Gray"></div>
+            <div class="arc-cell" style="background:#666" data-t="3:Dk.Gray"></div>
+            <div class="arc-cell" style="background:#333" data-t="4:V.DkGray"></div>
+            <div class="arc-cell" style="background:#000;border:1px solid #333" data-t="5:Black"></div>
+            <div class="arc-cell" style="background:#e53aa3" data-t="6:Magenta"></div>
+            <div class="arc-cell" style="background:#ff7bcc" data-t="7:Pink"></div>
+            <div class="arc-cell" style="background:#f93c31" data-t="8:Red"></div>
+            <div class="arc-cell" style="background:#1e93ff" data-t="9:Blue"></div>
+            <div class="arc-cell" style="background:#88d8f1" data-t="10:Lt.Blue"></div>
+            <div class="arc-cell" style="background:#ffdc00" data-t="11:Yellow"></div>
+            <div class="arc-cell" style="background:#ff851b" data-t="12:Orange"></div>
+            <div class="arc-cell" style="background:#921231" data-t="13:Dk.Red"></div>
+            <div class="arc-cell" style="background:#4fcc30" data-t="14:Green"></div>
+            <div class="arc-cell" style="background:#a356d6" data-t="15:Purple"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ────────────────────────────────────────────────────────
+   CONFIG & PALETTE
+──────────────────────────────────────────────────────── */
+const API = 'http://localhost:3100';
+const ARC_PAL = [
+  '#ffffff','#cccccc','#999999','#666666','#333333','#000000',
+  '#e53aa3','#ff7bcc','#f93c31','#1e93ff','#88d8f1','#ffdc00',
+  '#ff851b','#921231','#4fcc30','#a356d6'
+];
+const ARC_NAMES = [
+  'White','LtGray','Gray','DkGray','VDkGray','Black',
+  'Magenta','Pink','Red','Blue','LtBlue','Yellow',
+  'Orange','DkRed','Green','Purple'
+];
+
+/* ────────────────────────────────────────────────────────
+   APP STATE
+──────────────────────────────────────────────────────── */
+const S = {
+  games: [],
+  game: null,
+  runId: null,
+  status: 'idle',
+  step: 0,
+  gameState: 'NOT_FINISHED',
+  levels: 0,
+  totalLevels: 0,
+  agent: 'heuristic',
+  speed: 1,
+  timeline: [],
+  stats: null,
+  poll: null,
+  lastTimelineLen: 0,
+};
+
+/* ────────────────────────────────────────────────────────
+   API
+──────────────────────────────────────────────────────── */
+async function api(method, path, body) {
+  const r = await fetch(API + path, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!r.ok) {
+    const e = await r.json().catch(() => ({}));
+    throw new Error(e.detail || `HTTP ${r.status}`);
+  }
+  return r.json();
+}
+
+/* ────────────────────────────────────────────────────────
+   INIT
+──────────────────────────────────────────────────────── */
+document.getElementById('agentSel').addEventListener('change', e => { S.agent = e.target.value; });
+document.getElementById('speedSel').addEventListener('change', e => { S.speed = parseFloat(e.target.value); });
+document.getElementById('btnPlay').addEventListener('click', onPlayPause);
+document.getElementById('btnStep').addEventListener('click', onStep);
+document.getElementById('btnReset').addEventListener('click', onReset);
+document.getElementById('tlWrap').addEventListener('scroll', updateScrollBtn);
+
+fetchGames();
+
+async function fetchGames() {
+  try {
+    const games = await api('GET', '/api/games');
+    S.games = games;
+    document.getElementById('gamesCount').textContent = games.length;
+    document.getElementById('topbar-games-count').textContent = games.length + ' games';
+    document.getElementById('topbar-games-count').style.display = '';
+    renderGames(games);
+    document.getElementById('gamesErr').style.display = 'none';
+  } catch(e) {
+    document.getElementById('gamesErr').style.display = 'block';
+    document.getElementById('gamesList').innerHTML = '';
+    toast('Cannot reach backend', 'err');
+  }
+}
+
+function renderGames(games) {
+  const el = document.getElementById('gamesList');
+  el.innerHTML = games.map(g => `
+    <div class="game-card" data-gid="${g.game_id}" onclick="selectGame('${g.game_id}')">
+      <div class="gc-id">${g.game_id}</div>
+      <div class="gc-title">${g.title}</div>
+      <div class="gc-meta">
+        ${g.tags.map(t=>`<span class="gc-tag">${t}</span>`).join('')}
+        <span class="gc-stat">${g.levels}L</span>
+        <span class="gc-stat">·</span>
+        <span class="gc-stat">${g.baseline_actions.length}A</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+/* ────────────────────────────────────────────────────────
+   SELECT GAME
+──────────────────────────────────────────────────────── */
+async function selectGame(gid) {
+  const g = S.games.find(x => x.game_id === gid);
+  if (!g) return;
+
+  stopPoll();
+  if (S.runId && S.status === 'playing') {
+    try { await api('POST', `/api/runs/${S.runId}/pause`); } catch(_){}
+  }
+
+  S.game = g; S.runId = null; S.status = 'idle';
+  S.step = 0; S.levels = 0; S.totalLevels = g.levels;
+  S.timeline = []; S.stats = null; S.lastTimelineLen = 0;
+
+  // Highlight selection
+  document.querySelectorAll('.game-card').forEach(el =>
+    el.classList.toggle('active', el.dataset.gid === gid));
+
+  // Update header
+  document.getElementById('gtbName').textContent = g.title;
+  document.getElementById('gtbSub').textContent = `${g.game_id}  ·  ${g.levels} levels  ·  ${g.tags.join(', ')}`;
+  document.getElementById('bbTot').textContent = g.levels;
+  document.getElementById('topbar-games-count').textContent = g.game_id;
+
+  // Enable controls
+  ['btnPlay','btnStep','btnReset'].forEach(id => document.getElementById(id).disabled = false);
+
+  // Show canvas
+  document.getElementById('canvasEmpty').style.display = 'none';
+  document.getElementById('canvasFrame').style.display = 'block';
+  clearCanvas();
+
+  // Reset UI
+  resetTimeline();
+  clearDetails();
+  clearStats();
+  setBar(0, 0, g.levels);
+  setStatus('idle');
+
+  // Details placeholders
+  document.getElementById('d-gid').textContent = g.game_id;
+  document.getElementById('d-agt').textContent = S.agent;
+  document.getElementById('d-seed').textContent = '0';
+  document.getElementById('s-lvl-sub').textContent = `of ${g.levels} total`;
+
+  await initRun();
+}
+
+async function initRun() {
+  setStatus('ready');
+  try {
+    const res = await api('POST', '/api/runs', {
+      game_id: S.game.game_id,
+      agent_type: document.getElementById('agentSel').value,
+      seed: 0,
+    });
+    S.runId = res.run_id;
+    S.status = 'ready';
+    S.timeline = [];
+    S.lastTimelineLen = 0;
+    setPlayBtn(false, false);
+
+    document.getElementById('d-rid').textContent = res.run_id;
+    document.getElementById('d-agt').textContent = document.getElementById('agentSel').value;
+
+    if (res.initial_frame?.frame_image) drawB64(res.initial_frame.frame_image);
+
+    addTLStep({
+      step: 0, action: 'RESET',
+      state: res.initial_frame?.state || 'NOT_FINISHED',
+      reasoning: 'Initial game state — ready to run.',
+      available_actions: [],
+      levels_completed: 0,
+      frame_image: res.initial_frame?.frame_image || '',
+    });
+
+    toast('Ready · ' + S.game.game_id, 'ok');
+  } catch(e) {
+    toast('Run create failed: ' + e.message, 'err');
+    setStatus('idle');
+  }
+}
+
+/* ────────────────────────────────────────────────────────
+   CONTROLS
+──────────────────────────────────────────────────────── */
+async function onPlayPause() {
+  if (!S.runId) return;
+
+  if (S.status === 'completed') {
+    await onReset();
+    return;
+  }
+
+  if (S.status === 'playing') {
+    try {
+      await api('POST', `/api/runs/${S.runId}/pause`);
+      S.status = 'paused';
+      stopPoll();
+      setPlayBtn(false, false);
+      setStatus('paused');
+      toast('Paused', 'inf');
+    } catch(e) { toast(e.message, 'err'); }
+  } else {
+    try {
+      await api('POST', `/api/runs/${S.runId}/play`);
+      S.status = 'playing';
+      setPlayBtn(true, false);
+      setStatus('playing');
+      startPoll();
+    } catch(e) { toast(e.message, 'err'); }
+  }
+}
+
+async function onStep() {
+  if (!S.runId || S.status === 'playing') return;
+  try {
+    const res = await api('POST', `/api/runs/${S.runId}/step`);
+    S.step = res.step;
+    S.gameState = res.state;
+
+    if (res.frame?.frame_image) drawB64(res.frame.frame_image);
+
+    const terminal = (res.state === 'WIN' || res.state === 'GAME_OVER');
+    if (terminal) {
+      S.status = 'completed';
+      setStatus('completed');
+      setPlayBtn(false, true);
+    }
+
+    await pullTimeline();
+    await pullStats();
+    updateStates(res);
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+async function onReset() {
+  if (!S.runId) return;
+  stopPoll();
+  try {
+    const res = await api('POST', `/api/runs/${S.runId}/reset`);
+    S.status = 'ready'; S.step = 0; S.gameState = 'NOT_FINISHED';
+    S.levels = 0; S.timeline = []; S.stats = null; S.lastTimelineLen = 0;
+
+    if (res.initial_frame?.frame_image) drawB64(res.initial_frame.frame_image);
+
+    resetTimeline();
+    clearDetails();
+    clearStats();
+    setBar(0, 0, S.totalLevels);
+    setPlayBtn(false, false);
+    setStatus('ready');
+    document.getElementById('winBox').style.display = 'none';
+    document.getElementById('stateChip').style.display = 'none';
+
+    addTLStep({
+      step: 0, action: 'RESET',
+      state: res.initial_frame?.state || 'NOT_FINISHED',
+      reasoning: 'Game reset — ready to run again.',
+      available_actions: [],
+      levels_completed: 0,
+      frame_image: res.initial_frame?.frame_image || '',
+    });
+
+    toast('Reset done', 'inf');
+  } catch(e) { toast(e.message, 'err'); }
+}
+
+/* ────────────────────────────────────────────────────────
+   POLLING
+──────────────────────────────────────────────────────── */
+function startPoll() {
+  stopPoll();
+  const ms = Math.max(80, 200 / S.speed);
+  S.poll = setInterval(doPoll, ms);
+}
+function stopPoll() {
+  if (S.poll) { clearInterval(S.poll); S.poll = null; }
+}
+
+async function doPoll() {
+  if (!S.runId) return;
+  try {
+    const [frame, sts] = await Promise.all([
+      api('GET', `/api/runs/${S.runId}/frames/latest`),
+      api('GET', `/api/runs/${S.runId}/stats`),
+    ]);
+
+    if (frame.frame_image) drawB64(frame.frame_image);
+    const prevStep = S.step;
+    S.step = frame.step; S.gameState = frame.state; S.stats = sts;
+
+    setBar(frame.step, sts.levels_completed, S.totalLevels);
+    updateStatsUI(sts);
+    showStateChip(frame.state);
+
+    if (frame.step !== prevStep) await pullTimeline();
+
+    const terminal = (frame.state === 'WIN' || frame.state === 'GAME_OVER');
+    if (terminal) {
+      S.status = 'completed'; stopPoll();
+      setPlayBtn(false, true);
+      setStatus('completed');
+      await pullTimeline();
+      await pullStats();
+      showEndBanner(frame.state, frame.step);
+    }
+  } catch(_) {}
+}
+
+/* ────────────────────────────────────────────────────────
+   TIMELINE
+──────────────────────────────────────────────────────── */
+async function pullTimeline() {
+  if (!S.runId) return;
+  try {
+    const data = await api('GET', `/api/runs/${S.runId}/timeline`);
+    if (!data.steps?.length) return;
+    S.timeline = data.steps;
+
+    if (data.steps.length !== S.lastTimelineLen) {
+      S.lastTimelineLen = data.steps.length;
+      renderTimeline(data.steps);
+    }
+
+    // Update details from latest step
+    const last = data.steps[data.steps.length - 1];
+    updateDetails(last);
+  } catch(_) {}
+}
+
+function renderTimeline(steps) {
+  const el = document.getElementById('tlWrap');
+  const atBot = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+
+  el.innerHTML = steps.map(s => {
+    const isCur = (s.step === S.step);
+    const isWin = (s.state === 'WIN');
+    const isFail = (s.state === 'GAME_OVER');
+    return `
+      <div class="tl-step ${isCur?'cur':''} ${isWin?'win-step':''} ${isFail?'fail-step':''}"
+           id="tls-${s.step}" onclick="onTLClick(${s.step})">
+        <div class="tl-num">${s.step}</div>
+        <div class="tl-thumb" id="tlt-${s.step}"></div>
+        <div class="tl-info">
+          <div class="tl-action">${s.action || 'RESET'}</div>
+          <div class="tl-state-lvl">${s.state} · lvl ${s.levels_completed}</div>
+          <div class="tl-reason">${s.reasoning || '—'}</div>
+        </div>
+      </div>`;
+  }).join('');
+
+  // Draw thumbnails
+  steps.forEach(s => {
+    if (!s.frame_image) return;
+    const container = document.getElementById(`tlt-${s.step}`);
+    if (!container) return;
+    const c = document.createElement('canvas');
+    c.width = 64; c.height = 64;
+    drawB64ToCanvas(c, s.frame_image);
+    container.appendChild(c);
+  });
+
+  if (atBot) scrollTLBottom();
+  updateScrollBtn();
+}
+
+function addTLStep(s) {
+  S.timeline.push(s);
+  renderTimeline(S.timeline);
+}
+
+function onTLClick(step) {
+  const s = S.timeline.find(t => t.step === step);
+  if (!s) return;
+  if (s.frame_image) drawB64(s.frame_image);
+  updateDetails(s);
+  document.querySelectorAll('.tl-step').forEach(el => {
+    el.classList.toggle('cur', el.id === `tls-${step}`);
+  });
+  switchTab('details');
+}
+
+function resetTimeline() {
+  document.getElementById('tlWrap').innerHTML = `
+    <div class="tl-empty">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.4">
+        <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
+      </svg>
+      <span>No steps yet</span>
+    </div>`;
+}
+
+function scrollTLBottom() {
+  const el = document.getElementById('tlWrap');
+  el.scrollTop = el.scrollHeight;
+}
+function updateScrollBtn() {
+  const el = document.getElementById('tlWrap');
+  const atBot = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  const hasContent = el.scrollHeight > el.clientHeight + 100;
+  document.getElementById('scrollBtn').classList.toggle('vis', !atBot && hasContent);
+}
+
+/* ────────────────────────────────────────────────────────
+   STATS
+──────────────────────────────────────────────────────── */
+async function pullStats() {
+  if (!S.runId) return;
+  try {
+    const sts = await api('GET', `/api/runs/${S.runId}/stats`);
+    S.stats = sts;
+    updateStatsUI(sts);
+  } catch(_) {}
+}
+
+function updateStatsUI(sts) {
+  document.getElementById('s-steps').textContent = sts.total_steps;
+  document.getElementById('s-lvl').textContent = sts.levels_completed;
+  document.getElementById('s-time').textContent = sts.time_elapsed.toFixed(1) + 's';
+  document.getElementById('s-state-sub').textContent = S.status;
+
+  const dist = sts.action_distribution || {};
+  const entries = Object.entries(dist).sort((a,b) => b[1]-a[1]);
+  const max = entries.length ? entries[0][1] : 1;
+  const el = document.getElementById('s-dist');
+  if (!entries.length) {
+    el.innerHTML = '<div style="font-size:11px;color:var(--textM);opacity:0.6">No data yet</div>';
+  } else {
+    el.innerHTML = entries.map(([k,v]) => `
+      <div class="dist-row">
+        <div class="dist-name">${k}</div>
+        <div class="dist-track"><div class="dist-fill" style="width:${Math.round(v/max*100)}%"></div></div>
+        <div class="dist-cnt">${v}</div>
+      </div>`).join('');
+  }
+}
+
+function clearStats() {
+  ['s-steps','s-lvl','s-time'].forEach(id => document.getElementById(id).textContent = '0');
+  document.getElementById('s-dist').innerHTML = '<div style="font-size:11px;color:var(--textM);opacity:0.6">No data yet</div>';
+}
+
+/* ────────────────────────────────────────────────────────
+   DETAILS
+──────────────────────────────────────────────────────── */
+function updateDetails(s) {
+  document.getElementById('d-step').textContent = s.step;
+  document.getElementById('d-action').textContent = s.action || 'RESET';
+  document.getElementById('d-state').innerHTML =
+    `<span class="state-chip state-${s.state}" style="display:inline-block">${s.state}</span>`;
+  document.getElementById('d-lvl').textContent = s.levels_completed;
+  document.getElementById('d-reason').textContent = s.reasoning || '—';
+
+  const av = document.getElementById('d-avail');
+  av.innerHTML = (s.available_actions?.length)
+    ? s.available_actions.map(a => `<span class="chip">${a}</span>`).join('')
+    : '<span style="font-size:11px;color:var(--textM)">—</span>';
+
+  // Analyse frame image pixel data if available
+  if (s.frame_image) analyseFrameForDetails(s.frame_image);
+}
+
+function analyseFrameForDetails(b64) {
+  const img = new Image();
+  img.onload = () => {
+    const c = document.createElement('canvas');
+    c.width = img.width || 64; c.height = img.height || 64;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img, 0, 0);
+    // Note: may fail for cross-origin, but here we use data URI so it's fine
+    try {
+      const data = ctx.getImageData(0, 0, c.width, c.height).data;
+      // Count approximate color usage (quantize to ARC palette by index)
+      // Actually the frame is 64x64, so we can directly sample
+      // We'll count each pixel's closest ARC color
+      const counts = new Array(16).fill(0);
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i], g = data[i+1], b = data[i+2];
+        let best = 0, bestD = 1e9;
+        for (let ci = 0; ci < ARC_PAL.length; ci++) {
+          const hex = ARC_PAL[ci];
+          const pr = parseInt(hex.slice(1,3),16);
+          const pg = parseInt(hex.slice(3,5),16);
+          const pb = parseInt(hex.slice(5,7),16);
+          const d = (r-pr)**2 + (g-pg)**2 + (b-pb)**2;
+          if (d < bestD) { bestD = d; best = ci; }
+        }
+        counts[best]++;
+      }
+      const total = data.length / 4;
+      const active = counts.map((c,i)=>({i,c})).filter(x=>x.c>0).sort((a,b)=>b.c-a.c);
+      document.getElementById('d-actclr').textContent = active.length;
+      // Mean: use actual sum
+      let sum = 0;
+      for (let i = 0; i < data.length; i += 4) sum += (data[i]+data[i+1]+data[i+2])/3;
+      document.getElementById('d-mean').textContent = (sum / total).toFixed(1);
+
+      // Heatmap
+      const maxC = active.length ? active[0].c : 1;
+      const hm = document.getElementById('d-heatmap');
+      hm.innerHTML = counts.map((ct, ci) => {
+        const pct = ct / maxC;
+        const alpha = ct > 0 ? Math.max(0.2, pct) : 0.06;
+        return `<div class="clr-cell ${ct>0?'active':''}" style="background:${ARC_PAL[ci]};opacity:${alpha.toFixed(2)}"
+          title="${ci}: ${ARC_NAMES[ci]} (${ct})"></div>`;
+      }).join('');
+    } catch(_) {}
+  };
+  img.src = 'data:image/png;base64,' + b64;
+}
+
+function clearDetails() {
+  ['d-step','d-action','d-lvl','d-actclr','d-mean'].forEach(id =>
+    document.getElementById(id).textContent = '—');
+  document.getElementById('d-state').textContent = '—';
+  document.getElementById('d-reason').innerHTML = '<span class="reason-ph">Run the agent to see its decision logic.</span>';
+  document.getElementById('d-avail').innerHTML = '<span style="font-size:11px;color:var(--textM)">—</span>';
+  document.getElementById('d-heatmap').innerHTML = '';
+}
+
+/* ────────────────────────────────────────────────────────
+   CANVAS
+──────────────────────────────────────────────────────── */
+function drawB64(b64) {
+  const c = document.getElementById('gameCanvas');
+  const ctx = c.getContext('2d');
+  const img = new Image();
+  img.onload = () => {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, 0, 0, 480, 480);
+  };
+  img.src = 'data:image/png;base64,' + b64;
+}
+
+function drawB64ToCanvas(canvas, b64) {
+  const ctx = canvas.getContext('2d');
+  const img = new Image();
+  img.onload = () => {
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  };
+  img.src = 'data:image/png;base64,' + b64;
+}
+
+function clearCanvas() {
+  const c = document.getElementById('gameCanvas');
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#080a0f';
+  ctx.fillRect(0, 0, 480, 480);
+}
+
+/* ────────────────────────────────────────────────────────
+   UI HELPERS
+──────────────────────────────────────────────────────── */
+const STATUS_MAP = {
+  idle:'Idle', ready:'Ready', playing:'Running',
+  paused:'Paused', completed:'Finished'
+};
+
+function setStatus(st) {
+  S.status = st;
+  const dot = document.getElementById('statusDot');
+  dot.className = 'status-dot ' + st;
+  document.getElementById('statusText').textContent = STATUS_MAP[st] || st;
+  document.getElementById('s-state-sub').textContent = st;
+}
+
+function setPlayBtn(isPlaying, isCompleted) {
+  const btn = document.getElementById('btnPlay');
+  const lbl = document.getElementById('playLbl');
+  const ico = document.getElementById('playIconSvg');
+  if (isPlaying) {
+    btn.className = 'btn btn-play';
+    lbl.textContent = 'Pause';
+    ico.innerHTML = '<rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/>';
+  } else if (isCompleted) {
+    btn.className = 'btn btn-play';
+    lbl.textContent = 'Restart';
+    ico.innerHTML = '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>';
+  } else {
+    btn.className = 'btn btn-play';
+    lbl.textContent = 'Play';
+    ico.innerHTML = '<polygon points="5 3 19 12 5 21 5 3"/>';
+  }
+}
+
+function setBar(step, lvl, total) {
+  document.getElementById('bbStep').textContent = step;
+  document.getElementById('bbLvl').textContent = lvl;
+  document.getElementById('topStep').textContent = step;
+  document.getElementById('topLvl').textContent = lvl;
+  const pct = total > 0 ? Math.max(1, Math.min(100, (lvl / total) * 100)) : 1;
+  document.getElementById('progFill').style.width = pct + '%';
+}
+
+function showStateChip(st) {
+  const chip = document.getElementById('stateChip');
+  chip.style.display = 'inline-block';
+  chip.textContent = st;
+  chip.className = 'state-chip state-' + st;
+}
+
+function updateStates(res) {
+  setBar(res.step, res.levels_completed ?? S.levels, S.totalLevels);
+  showStateChip(res.state);
+  document.getElementById('bbTime').textContent = (S.stats?.time_elapsed?.toFixed(1) ?? '0') + 's';
+}
+
+function showEndBanner(state, steps) {
+  const box = document.getElementById('winBox');
+  if (state === 'WIN') {
+    box.innerHTML = `<div class="win-box"><h3>✓ Level Complete</h3><p>Cleared in ${steps} steps</p></div>`;
+  } else {
+    box.innerHTML = `<div class="over-box"><h3>✗ Game Over</h3><p>Stopped at step ${steps}</p></div>`;
+  }
+  box.style.display = 'block';
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    const n = ['timeline','details','stats'][i];
+    t.classList.toggle('on', n === name);
+  });
+  document.querySelectorAll('.tab-pane').forEach(p => {
+    p.classList.toggle('on', p.id === 'tp-' + name);
+  });
+}
+
+/* ────────────────────────────────────────────────────────
+   TOAST
+──────────────────────────────────────────────────────── */
+let _tt;
+function toast(msg, type='inf') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast ${type} show`;
+  clearTimeout(_tt);
+  _tt = setTimeout(() => el.classList.remove('show'), 2600);
+}
+</script>
+</body>
+</html>

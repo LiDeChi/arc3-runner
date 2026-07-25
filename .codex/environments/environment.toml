@@ -1,0 +1,14 @@
+version = 1
+name = "ARC3 Runner"
+
+[setup]
+script = """
+cd "${CODEX_WORKTREE_PATH:-$PWD}"
+uv sync --extra dev
+npm --prefix web ci
+"""
+
+[[actions]]
+name = "打开体验"
+icon = "run"
+command = "bash \"${CODEX_WORKTREE_PATH:-$PWD}/scripts/open-experience.sh\""

@@ -1,0 +1,26 @@
+{
+  "id": "g01_plain",
+  "size": {"w": 10, "h": 10},
+  "tiles": [
+    [1,1,1,1,1,1,1,1,1,1],
+    [1,2,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1]
+  ],
+  "entities": [{"id": "agent", "kind": "agent", "x": 1, "y": 8, "color": 4}],
+  "actions": {
+    "A1": {"program": {"op": "translate", "dx": 0, "dy": -1}, "hint": "arrow_up"},
+    "A2": {"program": {"op": "translate", "dx": 0, "dy": 1}, "hint": "arrow_down"},
+    "A3": {"program": {"op": "translate", "dx": -1, "dy": 0}, "hint": "arrow_left"},
+    "A4": {"program": {"op": "translate", "dx": 1, "dy": 0}, "hint": "arrow_right"}
+  },
+  "win": {"type": "reach_goal"},
+  "max_steps": 40,
+  "meta": {"traps": [], "difficulty": 1.0, "seed": 1}
+}

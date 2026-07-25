@@ -21,7 +21,12 @@ def test_training_episode_returns_metrics_and_audit_steps() -> None:
     assert episode["episode_id"].startswith("ep-")
     assert "fool_score" in episode["metrics"]
     assert episode["steps"]
-    assert "surprise" in episode["steps"][0]
+    first_step = episode["steps"][0]
+    assert "surprise" in first_step
+    assert first_step["before_frame"]
+    assert first_step["frame"]
+    assert first_step["imagination"]["predicted_frame"]
+    assert first_step["action_request"]["transport"] == "synthetic.training"
     assert summarize_generation([episode])["prediction_accuracy"] <= 1.0
 
 
@@ -54,8 +59,16 @@ def test_training_api_runs_small_job() -> None:
         time.sleep(0.05)
 
     assert client.get("/api/training/status").json()["status"] == "completed"
-    assert client.get("/api/training/generations").json()
+    generations = client.get("/api/training/generations").json()
+    assert generations
     assert client.get("/api/training/knowledge").json()["calibration"]
+    episodes = client.get(
+        f"/api/training/generations/{generations[-1]['gen']}/episodes"
+    ).json()
+    assert episodes
+    episode = client.get(f"/api/training/episodes/{episodes[0]['episode_id']}").json()
+    assert episode["trap"] in {"T1", "T6"}
+    assert episode["steps"][0]["imagination"]["predicted_frame"]
 
 
 def test_trainer_persists_official_eval_hook(tmp_path) -> None:

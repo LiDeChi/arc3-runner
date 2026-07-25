@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Activity, Bot, Circle, Cloud, FlaskConical, Play, RefreshCw, Sidebar, Wifi, WifiOff } from 'lucide-react'
+import { Activity, Bot, Circle, Cloud, FlaskConical, HelpCircle, Play, RefreshCw, Sidebar, Wifi, WifiOff } from 'lucide-react'
 import {
   createRun,
   createSynthSpec,
@@ -22,6 +22,7 @@ import type {
   SynthSpec,
   TrainingGeneration,
   TrainingKnowledge,
+  TrainingStartParams,
   TrainingStatus,
 } from './types'
 import { AGENT_STRATEGIES } from './types'
@@ -33,6 +34,8 @@ import { SynthFactory } from './components/SynthFactory'
 import { TrainingDashboard } from './components/TrainingDashboard'
 import { CalibrationView } from './components/CalibrationView'
 import { KnowledgeView } from './components/KnowledgeView'
+import { EventDetail, type DetailTab } from './components/EventDetail'
+import { HelpDrawer } from './components/HelpDrawer'
 
 const terminalStatuses = new Set(['completed', 'stopped', 'error'])
 type AppMode = 'run' | 'training'
@@ -64,8 +67,10 @@ export default function App() {
   // New UI state
   const [interfaceMode, setInterfaceMode] = useState<InterfaceMode>('visual')
   const [historyViewMode, setHistoryViewMode] = useState<HistoryViewMode>('gallery')
-  const [strategyId, setStrategyId] = useState<AgentStrategyId>('heuristic-explorer')
+  const [strategyId, setStrategyId] = useState<AgentStrategyId>('transform-aware')
   const [showInspector, setShowInspector] = useState(false)
+  const [detailTab, setDetailTab] = useState<DetailTab | null>(null)
+  const [helpOpen, setHelpOpen] = useState(false)
 
   useEffect(() => {
     fetchGames()
@@ -270,11 +275,11 @@ export default function App() {
     }
   }
 
-  const handleStartTraining = async () => {
+  const handleStartTraining = async (params: TrainingStartParams) => {
     setTrainingLoading(true)
     setError(null)
     try {
-      const status = await startTraining(3, 4)
+      const status = await startTraining(params)
       setTrainingStatus(status)
       setTrainingTab('overview')
       setAppMode('training')
@@ -338,6 +343,10 @@ export default function App() {
           {connection === 'live' ? <Wifi size={13} /> : connection === 'demo' ? <WifiOff size={13} /> : <RefreshCw size={13} className="spin" />}
           {connection === 'live' ? 'Official' : connection === 'demo' ? 'Demo' : '···'}
         </div>
+
+        <button className="help-button" onClick={() => setHelpOpen(true)} aria-label="打开界面导览" title="界面导览">
+          <HelpCircle size={15} />
+        </button>
 
         <div className="agent-select">
           <Bot size={14} />
@@ -441,6 +450,14 @@ export default function App() {
                 onModeChange={setInterfaceMode}
               />
 
+              <EventDetail
+                steps={steps}
+                selectedIndex={safeIndex}
+                tab={detailTab}
+                onTab={(tab) => setDetailTab((current) => current === tab ? null : tab)}
+                onSelect={selectStep}
+              />
+
               <FrameHistory
                 steps={steps}
                 selectedIndex={safeIndex}
@@ -472,6 +489,7 @@ export default function App() {
         {error && <span className="footer-error">{error}</span>}
         <span>ARC3 v2</span>
       </footer>
+      <HelpDrawer open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   )
 }

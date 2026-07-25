@@ -1,6 +1,9 @@
 # ARC3 Runner
 
-ARC3 Runner 是一个面向 ARC-AGI-3 的本地 Agent 运行与轨迹审计界面。它通过官方 `arc-agi` Toolkit 获取公开环境、执行动作，并把每局游戏的帧、关卡进度、候选动作、选择依据和环境结果组织成可回放的可视化工作台。
+ARC3 Runner 是 ARC3 相关工作的统一主仓：根目录提供面向 ARC-AGI-3 的本地 Agent
+运行、对抗训练与轨迹审计产品，`packages/` 和 `experiments/` 隔离保存数学推理与
+World Model 研究。产品通过官方 `arc-agi` Toolkit 获取公开环境、执行动作，并把
+帧、假设、想象、置信度和环境结果组织成可回放的可视化工作台。
 
 ![ARC3 Runner 可视化游戏界面](artifacts/qa/visual-interface-desktop.png)
 
@@ -12,6 +15,8 @@ ARC3 Runner 是一个面向 ARC-AGI-3 的本地 Agent 运行与轨迹审计界�
 - **可视化游戏界面**：当前帧渲染（PixelGrid）+ 动作空间 + 候选动作评分 + 观察/变化/假设/执行结果，合并为一个整体面板。
 - **一键数据界面**：同一帧可在"可视化"和"数据"模式间切换，数据视图使用紧凑 JSON 渲染，避免一行一个数字。
 - **多视图历史帧序列**：支持画廊式（横向缩略卡片）、列表式（紧凑行表）、时间线式（拖动 + 详情栏）三种视图查看过去每一帧。
+- **本步决策卡**：集中显示 transform 函数、probe/exploit 门控、原始/校准置信度、surprise、预测误差与 belief flip。
+- **可折叠事件详情**：重新接入轨迹、完整输入、对象解析、决策状态、假设、想象、请求/响应、帧差异和原始事件页签。
 - **回放与重玩**：回放 = 播放已有轨迹；重玩 = 以选定策略重新执行环境，创建新 run_id。
 
 ### Agent、训练与运行
@@ -32,6 +37,8 @@ ARC3 Runner 是一个面向 ARC-AGI-3 的本地 Agent 运行与轨迹审计界�
 - 训练模式包含 SynthFactory、训练总览、可信度、知识库四个页签。
 - SynthFactory 支持生成 T1 规则突变和 T6 伪装偏移合成题，并可直接创建 `synth-local` run。
 - 对抗训练循环在本地合成环境上运行 transform-aware agent，计算 solve_rate、prediction_accuracy、ECE、fool_score，并把世代、episode、先验、校准和陷阱信号写入 SQLite；后续合成 episode 会复用已学到的非 identity 动作先验与可信度校准。
+- 训练参数可在界面调整；每代可下钻到 episode，再回放每一步的前帧、预测帧、实际帧、候选动作、函数假设与惊奇峰值。
+- 训练趋势图、可靠性图和惊奇时间线使用无额外依赖的 SVG 渲染。
 - 每 5 个训练世代可触发官方公开环境对照评测，比较 Heuristic Explorer、原始 Transform-Aware、训练后 Transform-Aware 的 solve_rate、prediction_accuracy、ECE；官方评测只迁移校准策略，不把合成 action_id 先验直接套到官方环境。
 
 审计内容是结构化运行摘要，不保存或展示模型隐藏思维链。
@@ -42,14 +49,17 @@ ARC3 Runner 是一个面向 ARC-AGI-3 的本地 Agent 运行与轨迹审计界�
 
 ```bash
 make install
-make dev
+make open
 ```
 
 默认地址：
 
-- Web：<http://127.0.0.1:5173>（端口占用时 Vite 会自动选择下一个端口）
+- Web：<http://127.0.0.1:5174>
 - API：<http://127.0.0.1:8010>
 - API 文档：<http://127.0.0.1:8010/docs>
+
+`make open` 会复用已运行的正确实例，并在端口被其他服务占用时明确失败，避免静默
+切换端口或重复启动。需要前台联合日志时仍可使用 `make dev`。
 
 官方 Toolkit 会尝试获取匿名 API key。需要访问匿名范围之外的环境时，可设置：
 
@@ -64,6 +74,8 @@ make test
 make lint
 make build
 ```
+
+`make test` 会依次验证产品、`arc3-math` 和 World Model 三个作用域。
 
 浏览器验收截图位于 `artifacts/qa/`，包括可视化界面、画廊历史、列表历史、数据界面、移动端布局。
 
@@ -85,8 +97,9 @@ make build
 - `GET /api/training/status`：读取当前训练状态和实时指标。
 - `GET /api/training/generations`：读取世代指标，包含官方对照评测报告（触发时）。
 - `GET /api/training/generations/{gen}/games`：读取某代合成游戏画廊数据。
-- `GET /api/training/episodes/{episode_id}`：读取训练 episode 摘要。
-- `GET /api/training/knowledge`：读取动作先验、校准表和陷阱前兆库。
+- `GET /api/training/generations/{gen}/episodes`：读取某代 episode 摘要。
+- `GET /api/training/episodes/{episode_id}`：读取含完整帧与 audit.v3 字段的训练回放。
+- `GET /api/training/knowledge`：读取动作先验、校准表、陷阱前兆和惊奇时间线。
 
 普通运行状态仍保存在内存中；训练知识库默认写入 `data/runner.db`。
 
@@ -114,15 +127,31 @@ make build
 │       ├── CompactJson.tsx        # 紧凑 JSON/矩阵渲染
 │       ├── PixelGrid.tsx          # 像素帧渲染
 │       ├── TraceInspector.tsx     # 决策详情侧栏
+│       ├── DecisionCard.tsx       # 本步函数、门控、置信度与惊奇
+│       ├── EpisodeReplay.tsx      # 训练 episode 逐步回放
+│       ├── TrendChart.tsx         # 训练趋势 SVG
+│       ├── ReliabilityChart.tsx   # 校准可靠性 SVG
+│       ├── HelpDrawer.tsx         # 界面导览
 │       ├── SynthFactory.tsx       # 合成游戏画廊与 GameSpec
-│       ├── TrainingDashboard.tsx  # 训练总览与官方对照评测
+│       ├── TrainingDashboard.tsx  # 参数、趋势、episode 下钻、官方对照
 │       ├── CalibrationView.tsx    # 可信度/校准图
 │       ├── KnowledgeView.tsx      # 动作先验、校准表、陷阱信号
 │       ├── HypothesisPanel.tsx    # 动作变换假设与向量场
 │       ├── ImaginationView.tsx    # 想象帧/实际帧/惊奇规划树
 │       ├── VectorFieldOverlay.tsx # 变换向量示意
-│       └── EventDetail.tsx        # 旧详情面板（逻辑保留，UI 已融入新组件）
+│       └── EventDetail.tsx        # 可折叠完整事件详情
+├── packages/arc3-math/            # 独立数学 DSL/引擎/Agent/生成器
+├── experiments/world-model/       # 独立 Dreamer-lite/PBT 研究实验
+├── deploy/arc3-wordm-us/          # arc3.wordm.us Cloudflare Worker
+├── docs/architecture/             # 架构决策记录
+├── docs/research/                 # 数学与认知训练研究资料
+├── docs/archive/                  # 静态 UI 原型
 ├── docs/doc.md           # 产品需求笔记
 ├── plans/                # 执行计划和交接文档
 └── artifacts/qa/         # 验收截图
 ```
+
+合并前的完整源码分别保存在
+`archive/orphan-ui-20260707`、`archive/arc3-math-20260708`、
+`archive/world-model-20260705` 和 `archive/arc-static-trainer-20260621` 分支。
+边界与取舍见 `docs/architecture/adr-0001-consolidate-arc3-lab.md`。
