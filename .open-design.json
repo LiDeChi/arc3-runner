@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "designSystem": {
+    "slug": "minimal",
+    "path": "design-systems/minimal"
+  },
+  "skill": {
+    "slug": "web-prototype",
+    "path": "design-templates/web-prototype",
+    "kind": "design-template",
+    "mode": "prototype"
+  },
+  "boundAt": "2025-07-17T00:00:00Z"
+}

@@ -1,0 +1,266 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e4]:
+      - generic [ref=e5]: △
+      - generic [ref=e6]: ARC3
+      - generic [ref=e7]: Cognitive Forge
+      - generic [ref=e8]: v0
+    - generic [ref=e10]:
+      - generic [ref=e11]: 训练周期
+      - generic [ref=e12]: "#042"
+      - generic [ref=e13]: ● 📂 Historical
+    - generic [ref=e15]:
+      - generic [ref=e16]: 17:43
+      - generic [ref=e17]: /
+      - generic [ref=e18]: 预计剩余 08:17:43
+  - generic [ref=e19]:
+    - complementary [ref=e20]:
+      - generic [ref=e21]:
+        - heading "系统" [level=3] [ref=e22]
+        - generic [ref=e23]:
+          - generic [ref=e24]:
+            - generic [ref=e25]: GPU
+            - generic [ref=e28]: 82%
+          - generic [ref=e29]:
+            - generic [ref=e30]: 磁盘
+            - generic [ref=e31]: 23.4 / 319.68 GB
+          - generic [ref=e32]:
+            - generic [ref=e33]: CPU
+            - generic [ref=e36]: 31%
+          - generic [ref=e37]:
+            - generic [ref=e38]: 内存
+            - generic [ref=e41]: 487 / 128 GB
+          - generic [ref=e42]:
+            - generic [ref=e43]: I/O
+            - generic [ref=e44]: 620 MB/s
+          - generic [ref=e45]:
+            - generic [ref=e46]: FM
+            - generic [ref=e47]: 12.3 / 3.2 Mops
+      - generic [ref=e48]:
+        - heading "流程进度" [level=3] [ref=e49]
+        - generic [ref=e50]:
+          - generic [ref=e51]:
+            - generic [ref=e52]: ●
+            - generic [ref=e53]: 游戏生成
+            - generic [ref=e54]: 100%
+          - generic [ref=e55]:
+            - generic [ref=e56]: ●
+            - generic [ref=e57]: 验证
+            - generic [ref=e58]: 78%
+          - generic [ref=e59]:
+            - generic [ref=e60]: ○
+            - generic [ref=e61]: 对局
+            - generic [ref=e62]: 0%
+          - generic [ref=e63]:
+            - generic [ref=e64]: ○
+            - generic [ref=e65]: 技能合成
+            - generic [ref=e66]: 0%
+        - generic [ref=e67]:
+          - generic [ref=e68]: "当前任务: 生成对抗游戏 (AG-042-019)"
+          - generic [ref=e69]:
+            - generic [ref=e70]: "HF: 913772"
+            - generic [ref=e71]: "难度: 0.72"
+            - generic [ref=e72]: "预计: 02:34"
+      - generic [ref=e73]:
+        - heading "回合记录" [level=3] [ref=e74]
+        - generic [ref=e75]:
+          - generic [ref=e76] [cursor=pointer]:
+            - generic [ref=e77]: "#1"
+            - generic [ref=e78]: ✓
+            - generic [ref=e79]: D2
+          - generic [ref=e80] [cursor=pointer]:
+            - generic [ref=e81]: "#2"
+            - generic [ref=e82]: ✓
+            - generic [ref=e83]: D2
+          - generic [ref=e84] [cursor=pointer]:
+            - generic [ref=e85]: "#3"
+            - generic [ref=e86]: ✓
+            - generic [ref=e87]: D1
+          - generic [ref=e88] [cursor=pointer]:
+            - generic [ref=e89]: "#4"
+            - generic [ref=e90]: ✓
+            - generic [ref=e91]: D2
+          - generic [ref=e92] [cursor=pointer]:
+            - generic [ref=e93]: "#5"
+            - generic [ref=e94]: ✓
+            - generic [ref=e95]: D3
+          - generic [ref=e96] [cursor=pointer]:
+            - generic [ref=e97]: "#7"
+            - generic [ref=e98]: ✓
+            - generic [ref=e99]: D2
+          - generic [ref=e100] [cursor=pointer]:
+            - generic [ref=e101]: "#8"
+            - generic [ref=e102]: ✓
+            - generic [ref=e103]: D2
+          - generic [ref=e104] [cursor=pointer]:
+            - generic [ref=e105]: "#9"
+            - generic [ref=e106]: ✓
+            - generic [ref=e107]: D1
+          - generic [ref=e108] [cursor=pointer]:
+            - generic [ref=e109]: "#10"
+            - generic [ref=e110]: ✓
+            - generic [ref=e111]: D2
+          - generic [ref=e112] [cursor=pointer]:
+            - generic [ref=e113]: "#11"
+            - generic [ref=e114]: ✓
+            - generic [ref=e115]: D1
+          - generic [ref=e116] [cursor=pointer]:
+            - generic [ref=e117]: "#12"
+            - generic [ref=e118]: ✓
+            - generic [ref=e119]: D2
+          - generic [ref=e120] [cursor=pointer]:
+            - generic [ref=e121]: "#13"
+            - generic [ref=e122]: ✓
+            - generic [ref=e123]: D1
+          - generic [ref=e124] [cursor=pointer]:
+            - generic [ref=e125]: "#14"
+            - generic [ref=e126]: ✗
+            - generic [ref=e127]: D1
+          - generic [ref=e128] [cursor=pointer]:
+            - generic [ref=e129]: "#15"
+            - generic [ref=e130]: ✓
+            - generic [ref=e131]: D1
+          - generic [ref=e132] [cursor=pointer]:
+            - generic [ref=e133]: "#16"
+            - generic [ref=e134]: ✓
+            - generic [ref=e135]: D1
+          - generic [ref=e136] [cursor=pointer]:
+            - generic [ref=e137]: "#17"
+            - generic [ref=e138]: ✓
+            - generic [ref=e139]: D2
+          - generic [ref=e140] [cursor=pointer]:
+            - generic [ref=e141]: "#18"
+            - generic [ref=e142]: ✓
+            - generic [ref=e143]: D1
+          - generic [ref=e144] [cursor=pointer]:
+            - generic [ref=e145]: "#19"
+            - generic [ref=e146]: ✓
+            - generic [ref=e147]: D1
+    - main [ref=e148]:
+      - generic [ref=e150]:
+        - heading "训练控制" [level=3] [ref=e151]
+        - generic [ref=e152]:
+          - generic [ref=e153]:
+            - text: 轮次
+            - spinbutton "轮次" [ref=e154]: "100"
+          - generic [ref=e155]:
+            - text: Beam
+            - spinbutton "Beam" [ref=e156]: "50"
+          - generic [ref=e157]:
+            - text: 深度
+            - spinbutton "深度" [ref=e158]: "5"
+          - generic [ref=e159]:
+            - text: 🏛️
+            - spinbutton "🏛️" [ref=e160]: "0.0"
+          - button "启动" [ref=e161] [cursor=pointer]
+          - button "停止" [disabled] [ref=e162]
+      - generic [ref=e163]:
+        - generic [ref=e164]:
+          - heading "游戏帧对比" [level=3] [ref=e165]
+          - generic [ref=e166]: (64x64)
+          - generic [ref=e167]:
+            - button "⧉" [ref=e168] [cursor=pointer]
+            - button "1x" [ref=e169] [cursor=pointer]
+            - button "2x" [ref=e170] [cursor=pointer]
+            - button "4x" [ref=e171] [cursor=pointer]
+        - generic [ref=e172]:
+          - generic [ref=e173]:
+            - generic [ref=e174]: 之前 (t=12)
+            - generic [ref=e176]: 等待游戏数据...
+          - generic [ref=e177]:
+            - generic [ref=e178]: 之后 (t=13)
+            - generic [ref=e180]: 等待游戏数据...
+        - generic [ref=e181]:
+          - generic [ref=e182]: ARC-AGI
+          - generic [ref=e183]: 认知检查器 (Agent v0.87)
+          - button "查看思维日志 >" [ref=e184] [cursor=pointer]
+      - generic [ref=e185]:
+        - generic [ref=e186]:
+          - heading "感知对象 (12)" [level=3] [ref=e187]
+          - generic [ref=e189]: 等待感知数据...
+        - generic [ref=e190]:
+          - heading "当前假设 (Top-5)" [level=3] [ref=e192]
+          - generic [ref=e194]: 等待假设数据...
+      - generic [ref=e195]:
+        - generic [ref=e196]:
+          - heading "搜索" [level=3] [ref=e197]
+          - generic [ref=e198]: 选择动作
+          - generic [ref=e199]:
+            - generic [ref=e200] [cursor=pointer]: 所有
+            - generic [ref=e201] [cursor=pointer]: ACTION
+            - generic [ref=e202] [cursor=pointer]: 差异对比
+        - generic [ref=e204]: 等待搜索数据...
+      - generic [ref=e205]:
+        - generic [ref=e206]:
+          - heading "预测差异 (t+1)" [level=3] [ref=e207]
+          - generic [ref=e209]: 等待数据...
+        - generic [ref=e210]:
+          - heading "实际差异 (t+1)" [level=3] [ref=e211]
+          - generic [ref=e213]: 等待数据...
+    - complementary [ref=e214]:
+      - generic [ref=e215]:
+        - generic [ref=e216]:
+          - heading "MBA (Top-5)" [level=3] [ref=e217]
+          - generic [ref=e218] [cursor=pointer]: 详情 >
+        - generic [ref=e221]:
+          - generic [ref=e222]: "compose: 100%"
+          - generic [ref=e224]: "crop: 100%"
+          - generic [ref=e226]: "expand: 100%"
+          - generic [ref=e228]: "flip_h: 0%"
+          - generic [ref=e230]: "flip_v: 100%"
+      - generic [ref=e232]:
+        - heading "待晋升技能 (18)" [level=3] [ref=e233]
+        - generic [ref=e235]:
+          - generic [ref=e236]: "技能: 路径规划 v1.3"
+          - generic [ref=e239]: "熟练度: 124%"
+      - generic [ref=e240]:
+        - heading "验证结果" [level=3] [ref=e241]
+        - generic [ref=e242]:
+          - generic [ref=e243]:
+            - generic [ref=e244]: "通过:"
+            - generic [ref=e245]: "23"
+            - generic [ref=e246]: / 25
+          - generic [ref=e247]:
+            - generic [ref=e248]: "策略:"
+            - generic [ref=e249]: 引导搜索, 贪婪
+          - generic [ref=e250]:
+            - generic [ref=e251]: "周期:"
+            - generic [ref=e252]: "#042"
+      - generic [ref=e253]:
+        - heading "Agent 状态" [level=3] [ref=e254]
+        - generic [ref=e255]:
+          - generic [ref=e256]:
+            - generic [ref=e257]: "Was:"
+            - generic [ref=e258]: "0.86"
+          - generic [ref=e259]:
+            - generic [ref=e260]: "Bae:"
+            - generic [ref=e261]: "0.75"
+          - generic [ref=e262]:
+            - generic [ref=e263]: "Fgt:"
+            - generic [ref=e264]: "0.80"
+          - generic [ref=e265]:
+            - generic [ref=e266]: "Iov:"
+            - generic [ref=e267]: "67"
+      - generic [ref=e268]:
+        - heading "回合记录" [level=3] [ref=e269]
+        - generic [ref=e271]: 等待数据...
+  - contentinfo [ref=e272]:
+    - generic [ref=e273]:
+      - heading "事件时间线 (最近 120s)" [level=3] [ref=e274]
+      - generic [ref=e275]:
+        - generic [ref=e276]: 对局事件
+        - generic [ref=e278]: 动作执行
+        - generic [ref=e280]: 异常/回退
+    - generic [ref=e284]:
+      - generic [ref=e285]: 52 / 1432
+      - generic [ref=e286]:
+        - button "◀◀" [ref=e287] [cursor=pointer]
+        - button "◀" [ref=e288] [cursor=pointer]
+        - button "▸" [ref=e289] [cursor=pointer]
+        - button "▸" [ref=e290] [cursor=pointer]
+        - button "▸▸" [ref=e291] [cursor=pointer]
+      - generic [ref=e292]: 播放速度
+      - combobox [ref=e293]:
+        - option "1x" [selected]
+        - option "2x"
+        - option "4x"

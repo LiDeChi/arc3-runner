@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+coverage/
+
+# Type checking
+.mypy_cache/
+.pytype/
+
+# IDE & editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Training output
+training_output/
+
+# Reasonix
+.reasonix/attachments/

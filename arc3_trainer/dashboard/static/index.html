@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="zh-CN">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>ARC3 Cognitive Forge</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+            rel="stylesheet"
+        />
+        <link rel="stylesheet" href="/static/style.css" />
+    </head>
+    <body>
+        <!-- ===== TOP BAR ===== -->
+        <header id="topbar">
+            <div class="topbar-left">
+                <div class="forge-logo">
+                    <span class="logo-icon">△</span>
+                    <span class="logo-text">ARC3</span>
+                    <span class="logo-sub">Cognitive Forge</span>
+                    <span class="logo-version">v0</span>
+                </div>
+            </div>
+            <div class="topbar-center">
+                <div class="cycle-badge">
+                    <span class="cycle-label">训练周期</span>
+                    <span class="cycle-num" id="cycle-num">#042</span>
+                    <span class="cycle-status running" id="cycle-status"
+                        >● 运行中</span
+                    >
+                </div>
+            </div>
+            <div class="topbar-right">
+                <div class="timer-display">
+                    <span class="timer-elapsed" id="timer-elapsed">17:43</span>
+                    <span class="timer-sep">/</span>
+                    <span class="timer-remaining" id="timer-remaining"
+                        >预计剩余 08:17:43</span
+                    >
+                </div>
+            </div>
+        </header>
+
+        <!-- ===== MAIN LAYOUT ===== -->
+        <div class="forge-layout">
+            <!-- ===== LEFT SIDEBAR ===== -->
+            <aside class="sidebar-left" id="sidebar-left">
+                <!-- System Metrics -->
+                <section class="panel sys-panel">
+                    <h3 class="panel-title">系统</h3>
+                    <div class="sys-metrics" id="sys-metrics">
+                        <div class="sys-row">
+                            <span class="sys-label">GPU</span>
+                            <div class="sys-bar-bg">
+                                <div
+                                    class="sys-bar-fill"
+                                    id="sys-gpu-bar"
+                                    style="width: 82%"
+                                ></div>
+                            </div>
+                            <span class="sys-val" id="sys-gpu-val">82%</span>
+                        </div>
+                        <div class="sys-row">
+                            <span class="sys-label">磁盘</span>
+                            <span class="sys-val" id="sys-disk-val"
+                                >23.4 / 319.68 GB</span
+                            >
+                        </div>
+                        <div class="sys-row">
+                            <span class="sys-label">CPU</span>
+                            <div class="sys-bar-bg">
+                                <div
+                                    class="sys-bar-fill"
+                                    id="sys-cpu-bar"
+                                    style="width: 31%"
+                                ></div>
+                            </div>
+                            <span class="sys-val" id="sys-cpu-val">31%</span>
+                        </div>
+                        <div class="sys-row">
+                            <span class="sys-label">内存</span>
+                            <div class="sys-bar-bg">
+                                <div
+                                    class="sys-bar-fill"
+                                    id="sys-mem-bar"
+                                    style="width: 79%"
+                                ></div>
+                            </div>
+                            <span class="sys-val" id="sys-mem-val"
+                                >487 / 128 GB</span
+                            >
+                        </div>
+                        <div class="sys-row">
+                            <span class="sys-label">I/O</span>
+                            <span class="sys-val" id="sys-io-val"
+                                >620 MB/s</span
+                            >
+                        </div>
+                        <div class="sys-row">
+                            <span class="sys-label">FM</span>
+                            <span class="sys-val" id="sys-fm-val"
+                                >12.3 / 3.2 Mops</span
+                            >
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Pipeline Progress -->
+                <section class="panel pipeline-panel">
+                    <h3 class="panel-title">流程进度</h3>
+                    <div class="pipeline-progress" id="pipeline-progress">
+                        <div class="pipe-item done">
+                            <span class="pipe-icon">●</span>
+                            <span class="pipe-label">游戏生成</span>
+                            <span class="pipe-pct" id="pipe-game-pct"
+                                >100%</span
+                            >
+                        </div>
+                        <div class="pipe-item active">
+                            <span class="pipe-icon">●</span>
+                            <span class="pipe-label">验证</span>
+                            <span class="pipe-pct" id="pipe-validate-pct"
+                                >78%</span
+                            >
+                        </div>
+                        <div class="pipe-item pending">
+                            <span class="pipe-icon">○</span>
+                            <span class="pipe-label">对局</span>
+                            <span class="pipe-pct" id="pipe-match-pct">0%</span>
+                        </div>
+                        <div class="pipe-item pending">
+                            <span class="pipe-icon">○</span>
+                            <span class="pipe-label">技能合成</span>
+                            <span class="pipe-pct" id="pipe-synth-pct">0%</span>
+                        </div>
+                    </div>
+                    <div class="task-info" id="task-info">
+                        <div class="task-badge">
+                            当前任务:
+                            <span id="task-desc"
+                                >生成对抗游戏 (AG-042-019)</span
+                            >
+                        </div>
+                        <div class="task-meta">
+                            <span>HF: <b id="task-hf">913772</b></span>
+                            <span>难度: <b id="task-diff">0.72</b></span>
+                            <span>预计: <b id="task-eta">02:34</b></span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Round History Mini -->
+                <section class="panel">
+                    <h3 class="panel-title">回合记录</h3>
+                    <div class="round-list-mini" id="round-list-mini">
+                        <div
+                            style="
+                                color: var(--text-muted);
+                                font-size: 9px;
+                                text-align: center;
+                                padding: 8px 0;
+                            "
+                        >
+                            等待数据...
+                        </div>
+                    </div>
+                </section>
+            </aside>
+
+            <!-- ===== MAIN CONTENT ===== -->
+            <main class="content-center" id="content-center">
+                <!-- Training Controls -->
+                <section class="panel controls-panel" id="controls-panel">
+                    <div class="panel-header" style="margin-bottom: 0">
+                        <h3 class="panel-title">训练控制</h3>
+                        <div
+                            class="control-group"
+                            style="
+                                display: flex;
+                                align-items: center;
+                                gap: 8px;
+                                font-size: 11px;
+                                margin-left: auto;
+                            "
+                        >
+                            <label
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 3px;
+                                    color: var(--text-muted);
+                                "
+                            >
+                                轮次
+                                <input
+                                    type="number"
+                                    id="rounds-input"
+                                    value="100"
+                                    min="10"
+                                    max="1000"
+                                    class="ctrl-input"
+                                    style="width: 50px"
+                                />
+                            </label>
+                            <label
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 3px;
+                                    color: var(--text-muted);
+                                "
+                            >
+                                Beam
+                                <input
+                                    type="number"
+                                    id="beam-input"
+                                    value="50"
+                                    min="10"
+                                    max="200"
+                                    class="ctrl-input"
+                                    style="width: 45px"
+                                />
+                            </label>
+                            <label
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 3px;
+                                    color: var(--text-muted);
+                                "
+                            >
+                                深度
+                                <input
+                                    type="number"
+                                    id="depth-input"
+                                    value="5"
+                                    min="1"
+                                    max="10"
+                                    class="ctrl-input"
+                                    style="width: 40px"
+                                />
+                            </label>
+                            <label
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 3px;
+                                    color: var(--text-muted);
+                                "
+                            >
+                                🏛️
+                                <input
+                                    type="number"
+                                    id="official-ratio-input"
+                                    value="0.0"
+                                    min="0.0"
+                                    max="1.0"
+                                    step="0.1"
+                                    class="ctrl-input"
+                                    style="width: 40px"
+                                />
+                            </label>
+                            <button
+                                class="btn-primary"
+                                id="btn-start"
+                                onclick="window.startTraining()"
+                            >
+                                启动
+                            </button>
+                            <button
+                                class="btn-danger"
+                                id="btn-stop"
+                                onclick="window.stopTraining()"
+                                disabled
+                            >
+                                停止
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Game Interface: Full data passing view -->
+                <section class="panel game-compare-panel">
+                    <div class="panel-header">
+                        <h3 class="panel-title">
+                            游戏界面 (Agent ↔ Task 数据传递)
+                        </h3>
+                        <span class="panel-dim" id="game-dim">(网格)</span>
+                        <div class="panel-controls">
+                            <button
+                                class="btn-icon"
+                                onclick="window.showActionSpace()"
+                                title="操作空间"
+                            >
+                                ⚙️ 操作空间
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Train Examples: the "rules" the agent learns from -->
+                    <div class="game-section">
+                        <div class="game-section-title">
+                            训练示例 (规则示例，Agent 感知输入)
+                        </div>
+                        <div class="train-examples" id="train-examples">
+                            <div class="placeholder">等待任务数据...</div>
+                        </div>
+                    </div>
+
+                    <!-- Test Case: the actual game instance + agent decision output -->
+                    <div class="game-section">
+                        <div class="game-section-title">
+                            测试用例 + Agent 决策结果
+                        </div>
+                        <div class="test-case" id="test-case">
+                            <div class="test-col">
+                                <div class="test-label">
+                                    Test Input (游戏初始状态)
+                                </div>
+                                <div
+                                    class="game-grid-container"
+                                    id="game-test-input"
+                                >
+                                    <div class="placeholder">等待输入...</div>
+                                </div>
+                            </div>
+                            <div class="test-col">
+                                <div class="test-label">
+                                    Agent Predicted (决策输出)
+                                </div>
+                                <div
+                                    class="game-grid-container predicted"
+                                    id="game-predicted"
+                                >
+                                    <div class="placeholder">等待预测...</div>
+                                </div>
+                            </div>
+                            <div class="test-col">
+                                <div class="test-label">
+                                    Expected (真实答案)
+                                </div>
+                                <div
+                                    class="game-grid-container"
+                                    id="game-expected"
+                                >
+                                    <div class="placeholder">等待期望...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="game-source-bar" id="game-source-bar">
+                        <span class="source-badge" id="source-badge"
+                            >SYNTHETIC</span
+                        >
+                        <span class="source-agent" id="source-agent"
+                            >Solver (Perceive → Hypothesize → Search)</span
+                        >
+                        <button
+                            class="btn-link"
+                            id="btn-view-thought"
+                            onclick="window.showDecisionTrace()"
+                        >
+                            查看完整决策轨迹 >
+                        </button>
+                    </div>
+                </section>
+
+                <!-- Perception + Hypotheses Row -->
+                <div class="content-row">
+                    <!-- Perception Objects -->
+                    <section class="panel percept-panel">
+                        <h3 class="panel-title">
+                            感知对象 (<span id="percept-count">12</span>)
+                        </h3>
+                        <div class="percept-list" id="percept-list">
+                            <div class="placeholder">等待感知数据...</div>
+                        </div>
+                    </section>
+
+                    <!-- Current Hypotheses -->
+                    <section class="panel hypotheses-panel">
+                        <div class="panel-header">
+                            <h3 class="panel-title">当前假设 (Top-5)</h3>
+                        </div>
+                        <div class="hypotheses-list" id="hypotheses-list">
+                            <div class="placeholder">等待假设数据...</div>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- Actions / Search Beam -->
+                <section class="panel actions-panel">
+                    <div class="panel-header">
+                        <h3 class="panel-title">搜索</h3>
+                        <span class="panel-subtitle" id="search-subtitle"
+                            >选择动作</span
+                        >
+                        <div class="action-tabs" id="action-tabs">
+                            <span class="action-tab active" data-action="all"
+                                >所有</span
+                            >
+                            <span class="action-tab" data-action="action"
+                                >ACTION</span
+                            >
+                            <span class="action-tab" data-action="pred"
+                                >差异对比</span
+                            >
+                        </div>
+                    </div>
+                    <div class="actions-content" id="actions-content">
+                        <div class="placeholder">等待搜索数据...</div>
+                    </div>
+                </section>
+
+                <!-- Prediction Differences Row -->
+                <div class="content-row">
+                    <section class="panel diff-panel">
+                        <h3 class="panel-title">预测差异 (t+1)</h3>
+                        <div class="diff-grid-container" id="diff-predicted">
+                            <div class="placeholder">等待数据...</div>
+                        </div>
+                    </section>
+                    <section class="panel diff-panel">
+                        <h3 class="panel-title">实际差异 (t+1)</h3>
+                        <div class="diff-grid-container" id="diff-actual">
+                            <div class="placeholder">等待数据...</div>
+                        </div>
+                    </section>
+                </div>
+            </main>
+
+            <!-- ===== RIGHT SIDEBAR ===== -->
+            <aside class="sidebar-right" id="sidebar-right">
+                <!-- MBA Radar -->
+                <section class="panel radar-panel">
+                    <div class="panel-header">
+                        <h3 class="panel-title">MBA (Top-5)</h3>
+                        <span class="panel-link" id="btn-radar-detail"
+                            >详情 ></span
+                        >
+                    </div>
+                    <div class="radar-chart-container">
+                        <canvas
+                            id="radar-canvas"
+                            width="220"
+                            height="220"
+                        ></canvas>
+                    </div>
+                    <div class="radar-legend" id="radar-legend"></div>
+                </section>
+
+                <!-- Skill Synthesis -->
+                <section class="panel skill-panel">
+                    <h3 class="panel-title">待晋升技能 (18)</h3>
+                    <div class="skill-list" id="skill-list">
+                        <div class="skill-item">
+                            <div class="skill-name">技能: 路径规划 v1.3</div>
+                            <div class="skill-progress">
+                                <div
+                                    class="skill-fill"
+                                    style="width: 62%"
+                                ></div>
+                            </div>
+                            <div class="skill-meta">
+                                <span>熟练度: 124%</span>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Validation Results -->
+                <section class="panel validate-panel">
+                    <h3 class="panel-title">验证结果</h3>
+                    <div class="validate-content" id="validate-content">
+                        <div class="validate-row">
+                            <span class="val-label">通过:</span
+                            ><span class="val-pass" id="val-pass">23</span
+                            ><span class="val-total">/ 25</span>
+                        </div>
+                        <div class="validate-row">
+                            <span class="val-label">策略:</span
+                            ><span class="val-strat" id="val-strategy"
+                                >引导搜索, 贪婪</span
+                            >
+                        </div>
+                        <div class="validate-row">
+                            <span class="val-label">周期:</span
+                            ><span class="val-cycle" id="val-cycle">#042</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Agent State -->
+                <section class="panel agent-panel">
+                    <h3 class="panel-title">Agent 状态</h3>
+                    <div class="agent-state" id="agent-state">
+                        <div class="ag-row">
+                            <span class="ag-key">Was:</span
+                            ><span class="ag-val" id="ag-was">0.86</span>
+                        </div>
+                        <div class="ag-row">
+                            <span class="ag-key">Bae:</span
+                            ><span class="ag-val" id="ag-bae">0.75</span>
+                        </div>
+                        <div class="ag-row">
+                            <span class="ag-key">Fgt:</span
+                            ><span class="ag-val" id="ag-fgt">0.80</span>
+                        </div>
+                        <div class="ag-row">
+                            <span class="ag-key">Iov:</span
+                            ><span class="ag-val" id="ag-iov">67</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Round History Mini -->
+                <section class="panel">
+                    <h3 class="panel-title">回合记录</h3>
+                    <div class="round-list-mini" id="round-list-mini">
+                        <div
+                            style="
+                                color: var(--text-muted);
+                                font-size: 9px;
+                                text-align: center;
+                                padding: 8px 0;
+                            "
+                        >
+                            等待数据...
+                        </div>
+                    </div>
+                </section>
+            </aside>
+        </div>
+
+        <!-- ===== BOTTOM BAR: Timeline ===== -->
+        <footer id="bottombar">
+            <div class="timeline-header">
+                <h3 class="panel-title">事件时间线 (最近 120s)</h3>
+                <div class="timeline-legend">
+                    <span class="tl-legend-item"
+                        ><span class="tl-dot game-event"></span> 对局事件</span
+                    >
+                    <span class="tl-legend-item"
+                        ><span class="tl-dot action-exec"></span> 动作执行</span
+                    >
+                    <span class="tl-legend-item"
+                        ><span class="tl-dot exception"></span> 异常/回退</span
+                    >
+                </div>
+            </div>
+            <div class="timeline-chart-container">
+                <canvas id="timeline-canvas" width="1200" height="100"></canvas>
+            </div>
+            <div class="timeline-controls">
+                <span class="tl-progress" id="tl-progress">52 / 1432</span>
+                <div class="tl-buttons">
+                    <button class="btn-icon" title="开始">◀◀</button>
+                    <button class="btn-icon" title="后退">◀</button>
+                    <button class="btn-icon" title="播放/暂停">▸</button>
+                    <button class="btn-icon" title="前进">▸</button>
+                    <button class="btn-icon" title="结束">▸▸</button>
+                </div>
+                <span class="tl-speed-label">播放速度</span>
+                <select class="tl-speed" id="tl-speed">
+                    <option>1x</option>
+                    <option>2x</option>
+                    <option>4x</option>
+                </select>
+            </div>
+        </footer>
+
+        <script src="/static/dashboard.js"></script>
+    </body>
+</html>
