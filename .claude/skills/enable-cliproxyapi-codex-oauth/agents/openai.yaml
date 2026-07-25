@@ -1,0 +1,4 @@
+interface:
+  display_name: "启用 CLIProxyAPI Codex OAuth"
+  short_description: "安全检测并启用本机 CLIProxyAPI 的 Codex OAuth 接入"
+  default_prompt: "使用 $enable-cliproxyapi-codex-oauth 检测并安全启用本机 CLIProxyAPI，接入我的 Codex OAuth。"

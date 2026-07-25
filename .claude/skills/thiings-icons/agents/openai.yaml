@@ -1,0 +1,8 @@
+interface:
+  display_name: "Thiings Icons"
+  short_description: "Find playful 3D cartoon icons"
+  brand_color: "#F97316"
+  default_prompt: "Use $thiings-icons to find and download a playful cartoon-style icon for my project."
+
+policy:
+  allow_implicit_invocation: true
